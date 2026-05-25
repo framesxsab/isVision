@@ -1,14 +1,16 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { IconHome, IconSettings } from "./Icons";
+import type { ReactNode } from "react";
 
 interface TabItem {
   path: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
 }
 
 const tabs: TabItem[] = [
-  { path: "/", label: "Home", icon: "\u2302" },
-  { path: "/settings", label: "Settings", icon: "\u2699" },
+  { path: "/", label: "Home", icon: <IconHome className="w-5 h-5" /> },
+  { path: "/settings", label: "Settings", icon: <IconSettings className="w-5 h-5" /> },
 ];
 
 export function TabBar() {
@@ -36,9 +38,7 @@ export function TabBar() {
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
             >
-              <span className="text-xl" aria-hidden="true">
-                {tab.icon}
-              </span>
+              {tab.icon}
               <span className="mt-0.5">{tab.label}</span>
             </button>
           );

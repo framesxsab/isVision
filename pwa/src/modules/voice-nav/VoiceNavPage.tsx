@@ -9,6 +9,7 @@ import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { commands, matchCommand } from "./commandRegistry";
 import { Button } from "@/components/Button";
+import { IconArrowLeft, IconMicrophone, IconEar } from "@/components/Icons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
 
@@ -148,7 +149,7 @@ export default function VoiceNavPage() {
       <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            ← Back
+            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
           </Button>
           <h1 className="text-lg font-bold text-white">Voice Nav</h1>
           <div className="w-20" />
@@ -172,7 +173,11 @@ export default function VoiceNavPage() {
           `}
           aria-label={isListening ? "Listening for your command" : "Press to speak a command"}
         >
-          {isListening ? "👂" : "🎤"}
+          {isListening ? (
+            <IconEar className="w-12 h-12 text-white" />
+          ) : (
+            <IconMicrophone className="w-12 h-12 text-white" />
+          )}
         </button>
         <p className="text-gray-400 mt-4 text-center" aria-live="polite">
           {isListening

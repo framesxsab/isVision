@@ -1,40 +1,46 @@
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/Card";
+import { IconTouch, IconCamera, IconBook, IconMicrophone } from "@/components/Icons";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 
-const modules = [
+interface ModuleInfo {
+  id: string;
+  title: string;
+  description: string;
+  icon: ReactNode;
+  path: string;
+}
+
+const modules: ModuleInfo[] = [
   {
     id: "touch-explorer",
     title: "Touch Explorer",
     description: "Touch the screen to hear what's there. Feel buttons, links, and headings.",
-    icon: "👆",
+    icon: <IconTouch className="w-6 h-6 text-primary-300" />,
     path: "/touch-explorer",
-    ready: true,
   },
   {
     id: "ai-vision",
     title: "AI Vision",
     description: "Point your camera at anything. AI describes what it sees.",
-    icon: "📷",
+    icon: <IconCamera className="w-6 h-6 text-primary-300" />,
     path: "/ai-vision",
-    ready: true,
   },
   {
     id: "reader",
     title: "Accessible Reader",
     description: "Paste any URL. Hear the article read aloud, clean and clear.",
-    icon: "📖",
+    icon: <IconBook className="w-6 h-6 text-primary-300" />,
     path: "/reader",
-    ready: true,
   },
   {
     id: "voice-nav",
     title: "Voice Navigation",
     description: "Speak commands to control everything. Hands-free operation.",
-    icon: "🎤",
+    icon: <IconMicrophone className="w-6 h-6 text-primary-300" />,
     path: "/voice-nav",
-    ready: true,
   },
 ];
 
@@ -64,16 +70,9 @@ export default function HomePage() {
             <Card
               key={mod.id}
               title={mod.title}
-              description={
-                mod.ready
-                  ? mod.description
-                  : `${mod.description} (Coming soon)`
-              }
-              icon={<span>{mod.icon}</span>}
-              onClick={() => {
-                if (mod.ready) navigate(mod.path);
-              }}
-              className={mod.ready ? "" : "opacity-60"}
+              description={mod.description}
+              icon={mod.icon}
+              onClick={() => navigate(mod.path)}
             />
           ))}
         </div>

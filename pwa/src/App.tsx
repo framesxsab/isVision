@@ -1,5 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { SkipLinks } from "@/core/a11y/SkipLinks";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { TabBar } from "@/components/TabBar";
 import HomePage from "@/pages/HomePage";
 import SettingsPage from "@/pages/SettingsPage";
@@ -16,16 +18,47 @@ export default function App() {
   return (
     <div className={highContrast ? "high-contrast" : ""}>
       <SkipLinks />
+      <OfflineBanner />
       <main id="main-content" className="pb-20">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/touch-explorer" element={<TouchExplorerPage />} />
-          <Route path="/ai-vision" element={<VisionAssistantPage />} />
-          <Route path="/reader" element={<ReaderPage />} />
-          <Route path="/voice-nav" element={<VoiceNavPage />} />
-        </Routes>
+        <ErrorBoundary moduleName="app">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route
+              path="/touch-explorer"
+              element={
+                <ErrorBoundary moduleName="Touch Explorer">
+                  <TouchExplorerPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/ai-vision"
+              element={
+                <ErrorBoundary moduleName="AI Vision">
+                  <VisionAssistantPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/reader"
+              element={
+                <ErrorBoundary moduleName="Accessible Reader">
+                  <ReaderPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/voice-nav"
+              element={
+                <ErrorBoundary moduleName="Voice Navigation">
+                  <VoiceNavPage />
+                </ErrorBoundary>
+              }
+            />
+          </Routes>
+        </ErrorBoundary>
       </main>
       <TabBar />
     </div>

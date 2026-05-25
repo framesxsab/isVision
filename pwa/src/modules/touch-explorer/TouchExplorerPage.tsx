@@ -10,6 +10,7 @@ import { useTouchExplorer } from "./useTouchExplorer";
 import { TouchSurface } from "./TouchSurface";
 import { ElementHighlight } from "./ElementHighlight";
 import { Button } from "@/components/Button";
+import { IconArrowLeft } from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 
@@ -46,7 +47,7 @@ export default function TouchExplorerPage() {
       <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            ← Back
+            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
           </Button>
           <h1 className="text-lg font-bold text-white">Touch Explorer</h1>
           <div className="w-20" /> {/* Spacer for centering */}

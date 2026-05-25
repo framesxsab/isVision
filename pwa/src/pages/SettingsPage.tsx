@@ -50,6 +50,7 @@ export default function SettingsPage() {
               id="voice-select"
               value={settings.voiceURI ?? ""}
               onChange={(e) => settings.setVoiceURI(e.target.value || null)}
+              aria-describedby="voice-hint"
               className="w-full min-h-touch bg-gray-800 text-white border border-gray-600 rounded-xl px-4 py-3"
             >
               <option value="">System default</option>
@@ -59,6 +60,7 @@ export default function SettingsPage() {
                 </option>
               ))}
             </select>
+            <span id="voice-hint" className="sr-only">Choose the voice used for all speech output</span>
           </div>
 
           <div>

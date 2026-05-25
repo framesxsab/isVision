@@ -7,6 +7,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReader } from "./useReader";
 import { Button } from "@/components/Button";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { IconArrowLeft, IconPlay, IconPause, IconSkipForward, IconSkipBack } from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useAnnounce } from "@/core/a11y/AriaLive";
@@ -92,7 +94,7 @@ export default function ReaderPage() {
       <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            ← Back
+            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
           </Button>
           <h1 className="text-lg font-bold text-white">Reader</h1>
           <div className="w-20" />
@@ -113,7 +115,10 @@ export default function ReaderPage() {
             placeholder="Paste a URL here..."
             className="flex-1 bg-gray-800 text-white border border-gray-600 rounded-xl px-4 py-3 min-h-touch"
             aria-label="URL to read"
+            aria-describedby="url-hint"
+            autoFocus
           />
+          <span id="url-hint" className="sr-only">Paste a webpage URL to read it accessibly</span>
           <Button type="submit" disabled={isLoading || !urlInput.trim()}>
             {isLoading ? "Loading..." : "Load"}
           </Button>
@@ -158,6 +163,12 @@ export default function ReaderPage() {
           )}
 
           {/* Article body */}
+          {isLoading && (
+            <div className="flex justify-center py-20">
+              <LoadingSpinner label="Loading article..." size="lg" />
+            </div>
+          )}
+
           {htmlContent ? (
             <article
               className={`prose prose-invert max-w-none leading-relaxed ${
@@ -168,7 +179,7 @@ export default function ReaderPage() {
               role="article"
             />
           ) : (
-            !isLoading && (
+            !isLoading && !error && (
               <div className="text-center text-gray-500 py-20">
                 <p className="text-xl mb-2">Enter a URL above to start reading</p>
                 <p className="text-sm">
@@ -191,7 +202,7 @@ export default function ReaderPage() {
               disabled={currentChunk === 0}
               aria-label="Previous paragraph"
             >
-              ⏮
+              <IconSkipBack className="w-6 h-6" />
             </Button>
 
             {/* Play/Pause */}
@@ -200,7 +211,11 @@ export default function ReaderPage() {
               size="lg"
               aria-label={isReading ? "Pause reading" : isPaused ? "Resume reading" : "Start reading"}
             >
-              {isReading ? "⏸ Pause" : "▶ Play"}
+              {isReading ? (
+                <><IconPause className="w-5 h-5 inline mr-1" /> Pause</>
+              ) : (
+                <><IconPlay className="w-5 h-5 inline mr-1" /> Play</>
+              )}
             </Button>
 
             {/* Next */}
@@ -210,7 +225,7 @@ export default function ReaderPage() {
               disabled={currentChunk >= chunks.length - 1}
               aria-label="Next paragraph"
             >
-              ⏭
+              <IconSkipForward className="w-6 h-6" />
             </Button>
           </div>
 

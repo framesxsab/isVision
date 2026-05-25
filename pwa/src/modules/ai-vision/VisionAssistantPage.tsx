@@ -7,6 +7,8 @@ import { useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useVisionAssistant } from "./useVisionAssistant";
 import { Button } from "@/components/Button";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { IconArrowLeft, IconUpload, IconRefresh, IconCaptureCircle } from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 
@@ -59,7 +61,7 @@ export default function VisionAssistantPage() {
       <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <Button variant="ghost" onClick={() => { stopCamera(); navigate("/"); }} aria-label="Go back to home">
-            ← Back
+            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
           </Button>
           <h1 className="text-lg font-bold text-white">AI Vision</h1>
           <span className="text-sm text-gray-400 w-20 text-right" role="status">
@@ -97,7 +99,7 @@ export default function VisionAssistantPage() {
               aria-label="Repeat description"
               className="flex-shrink-0"
             >
-              🔁
+              <IconRefresh className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -112,7 +114,7 @@ export default function VisionAssistantPage() {
             onClick={() => fileInputRef.current?.click()}
             aria-label="Upload an image"
           >
-            📁 Upload
+            <IconUpload className="w-5 h-5 inline mr-1" /> Upload
           </Button>
           <input
             ref={fileInputRef}
@@ -144,7 +146,11 @@ export default function VisionAssistantPage() {
                 : "Capture and describe what you see"
             }
           >
-            {state === "analyzing" ? "⏳" : "📸"}
+            {state === "analyzing" ? (
+              <LoadingSpinner size="sm" label="" />
+            ) : (
+              <IconCaptureCircle className="w-12 h-12 text-primary-600" />
+            )}
           </button>
 
           {/* Repeat button */}
@@ -154,7 +160,7 @@ export default function VisionAssistantPage() {
             disabled={!description}
             aria-label="Repeat last description"
           >
-            🔄 Repeat
+            <IconRefresh className="w-5 h-5 inline mr-1" /> Repeat
           </Button>
         </div>
       </div>

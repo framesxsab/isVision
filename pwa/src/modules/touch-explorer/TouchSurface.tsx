@@ -91,8 +91,10 @@ export function TouchSurface() {
               id="sample-name"
               type="text"
               placeholder="Enter your name"
+              aria-describedby="sample-name-hint"
               className="w-full bg-gray-800 text-white border border-gray-600 rounded-xl px-4 py-3 min-h-touch"
             />
+            <span id="sample-name-hint" className="sr-only">Enter your full name</span>
           </div>
           <div>
             <label htmlFor="sample-email" className="block text-gray-300 mb-1">
@@ -103,8 +105,11 @@ export function TouchSurface() {
               type="email"
               placeholder="you@example.com"
               required
+              aria-describedby="sample-email-hint"
+              aria-required="true"
               className="w-full bg-gray-800 text-white border border-gray-600 rounded-xl px-4 py-3 min-h-touch"
             />
+            <span id="sample-email-hint" className="sr-only">Required. Enter a valid email address</span>
           </div>
           <label className="flex items-center gap-3 min-h-touch">
             <input type="checkbox" className="w-6 h-6" />
