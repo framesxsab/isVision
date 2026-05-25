@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
+import { earcons } from "@/core/audio/Earcons";
 import { commands, matchCommand } from "./commandRegistry";
 import { Button } from "@/components/Button";
 import { IconArrowLeft, IconMicrophone, IconEar } from "@/components/Icons";
@@ -96,6 +97,7 @@ export default function VoiceNavPage() {
 
     setIsListening(true);
     speechEngine.stop();
+    earcons.activate();
     announce("Listening");
 
     try {
@@ -113,11 +115,13 @@ export default function VoiceNavPage() {
       setHistory((prev) => [entry, ...prev].slice(0, 20));
 
       if (match && match.confidence >= 0.6) {
+        earcons.success();
         announce(`${match.command.description}`);
         speechEngine.interrupt(`${match.command.description}`);
         // Small delay so user hears confirmation before navigation
         setTimeout(() => executeAction(match.command.action), 500);
       } else {
+        earcons.error();
         speechEngine.interrupt(`I didn't understand "${transcript}". Say help for available commands.`);
       }
     } catch (err) {

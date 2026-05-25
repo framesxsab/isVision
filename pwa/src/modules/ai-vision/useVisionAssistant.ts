@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef } from "react";
 import { describeImage } from "@/core/ai/NvidiaClient";
 import { speechEngine } from "@/core/audio/SpeechEngine";
+import { earcons } from "@/core/audio/Earcons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 
 type VisionState = "idle" | "capturing" | "analyzing" | "speaking";
@@ -56,6 +57,7 @@ export function useVisionAssistant() {
       if (!video) return;
 
       setState("capturing");
+      earcons.capture();
       announce("Capturing image");
       speechEngine.interrupt("Capturing image. Please hold still.");
 
@@ -92,6 +94,7 @@ export function useVisionAssistant() {
         setHistory((prev) => [entry, ...prev].slice(0, 10));
 
         setState("speaking");
+        earcons.success();
         announce("Description ready");
         speechEngine.interrupt(result);
         setState("idle");
@@ -101,6 +104,7 @@ export function useVisionAssistant() {
             ? `Error: ${err.message}`
             : "Could not analyze image. Check your internet connection.";
         setError(msg);
+        earcons.error();
         setState("idle");
         speechEngine.interrupt(msg);
       }

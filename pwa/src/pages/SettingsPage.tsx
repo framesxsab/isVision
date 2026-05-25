@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { Button } from "@/components/Button";
+import { IconArrowLeft } from "@/components/Icons";
 import { platform } from "@/core/utils/platform";
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const settings = useSettingsStore();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
@@ -33,7 +36,12 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen px-4 py-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
+          <IconArrowLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="text-2xl font-bold text-white">Settings</h1>
+      </div>
 
       {/* Speech Settings */}
       <section aria-labelledby="speech-heading" className="mb-8">

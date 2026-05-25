@@ -21,11 +21,11 @@ const steps = [
       "Touch Explorer lets you slide your finger across the screen. Each element you touch will be spoken aloud with haptic feedback.",
   },
   {
-    title: "AI Vision",
+    title: "Grant Permissions",
     description:
-      "Point your camera at anything — signs, documents, scenes, products. AI will describe what it sees in detail.",
+      "isVisible needs access to your camera (for AI Vision) and microphone (for Voice Navigation). You can deny these now and grant them later.",
     speech:
-      "AI Vision uses your camera. Point it at anything and I'll describe what I see. Signs, documents, scenes, anything.",
+      "I need your permission to use the camera and microphone. Tap the buttons below to grant access. You can skip this if you prefer.",
   },
   {
     title: "Choose Your Voice",
@@ -39,6 +39,8 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [cameraGranted, setCameraGranted] = useState<boolean | null>(null);
+  const [micGranted, setMicGranted] = useState<boolean | null>(null);
   const completeOnboarding = useSettingsStore((s) => s.completeOnboarding);
   const setVoiceURI = useSettingsStore((s) => s.setVoiceURI);
   const voiceURI = useSettingsStore((s) => s.voiceURI);
@@ -58,8 +60,33 @@ export default function OnboardingPage() {
     }
   }, [step]);
 
+  const requestCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((t) => t.stop()); // Release immediately
+      setCameraGranted(true);
+      speechEngine.interrupt("Camera access granted.");
+    } catch {
+      setCameraGranted(false);
+      speechEngine.interrupt("Camera access denied. You can grant it later in your browser settings.");
+    }
+  };
+
+  const requestMic = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setMicGranted(true);
+      speechEngine.interrupt("Microphone access granted.");
+    } catch {
+      setMicGranted(false);
+      speechEngine.interrupt("Microphone access denied. You can grant it later in your browser settings.");
+    }
+  };
+
   const currentStep = steps[step]!;
   const isLast = step === steps.length - 1;
+  const isPermissionsStep = step === 2;
 
   const handleNext = () => {
     if (isLast) {
@@ -96,6 +123,36 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-bold text-white mb-4">{currentStep.title}</h1>
         <p className="text-lg text-gray-300 leading-relaxed">{currentStep.description}</p>
       </div>
+
+      {/* Permissions step */}
+      {isPermissionsStep && (
+        <div className="w-full space-y-3 mb-8">
+          <Button
+            onClick={requestCamera}
+            variant={cameraGranted === true ? "primary" : "secondary"}
+            className="w-full"
+            disabled={cameraGranted === true}
+          >
+            {cameraGranted === true
+              ? "Camera granted"
+              : cameraGranted === false
+                ? "Camera denied — tap to retry"
+                : "Grant camera access"}
+          </Button>
+          <Button
+            onClick={requestMic}
+            variant={micGranted === true ? "primary" : "secondary"}
+            className="w-full"
+            disabled={micGranted === true}
+          >
+            {micGranted === true
+              ? "Microphone granted"
+              : micGranted === false
+                ? "Microphone denied — tap to retry"
+                : "Grant microphone access"}
+          </Button>
+        </div>
+      )}
 
       {/* Voice picker on last step */}
       {isLast && (

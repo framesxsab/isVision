@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/Card";
 import { IconTouch, IconCamera, IconBook, IconMicrophone } from "@/components/Icons";
 import { useSettingsStore } from "@/core/store/settingsStore";
+import { useInstallPrompt } from "@/core/hooks/useInstallPrompt";
+import { Button } from "@/components/Button";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 
@@ -47,6 +49,7 @@ const modules: ModuleInfo[] = [
 export default function HomePage() {
   const navigate = useNavigate();
   const onboardingComplete = useSettingsStore((s) => s.onboardingComplete);
+  const { canInstall, install } = useInstallPrompt();
 
   useEffect(() => {
     if (!onboardingComplete) {
@@ -78,7 +81,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="mt-12 text-center text-sm text-gray-500">
+      {/* Install prompt */}
+      {canInstall && (
+        <section aria-label="Install app" className="mt-8">
+          <Button onClick={install} size="lg" className="w-full">
+            Install isVisible on your device
+          </Button>
+          <p className="text-gray-500 text-sm text-center mt-2">
+            Add to home screen for quick access
+          </p>
+        </section>
+      )}
+
+      {/* Keyboard hint */}
+      <p className="mt-8 text-center text-sm text-gray-600">
+        Press F6 anywhere to speak a voice command
+      </p>
+
+      <footer className="mt-6 text-center text-sm text-gray-500">
         <p>Built for the community. Open source.</p>
       </footer>
     </div>

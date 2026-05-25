@@ -51,13 +51,8 @@ export function useReader() {
       speechEngine.interrupt("Loading article. Please wait.");
 
       try {
-        // Use a CORS proxy for fetching external URLs
-        // In production, this would go through our server
-        // For now, try direct fetch (works for same-origin or CORS-enabled sites)
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to load: ${response.status}`);
+        const html = await fetchWithCorsProxy(url);
 
-        const html = await response.text();
         const { title, content, textContent, headings } = cleanContent(html, url);
         const chunks = splitIntoChunks(textContent);
 
@@ -244,4 +239,29 @@ export function useReader() {
     prevChunk,
     jumpToHeading,
   };
+}
+
+/**
+ * Fetch a URL's HTML content, falling back through CORS proxy strategies.
+ * 1. Direct fetch (works for same-origin or CORS-enabled sites)
+ * 2. allorigins.win public proxy (free, no key needed)
+ */
+async function fetchWithCorsProxy(url: string): Promise<string> {
+  // Try direct fetch first
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (response.ok) return await response.text();
+  } catch {
+    // CORS error or timeout — fall through to proxy
+  }
+
+  // Fallback: allorigins.win public CORS proxy
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) {
+    throw new Error(
+      `Could not load the page. The website may be blocking access. Status: ${response.status}`
+    );
+  }
+  return await response.text();
 }
