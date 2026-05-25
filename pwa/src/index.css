@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* High contrast focus indicators — critical for accessibility */
+  *:focus-visible {
+    outline: 3px solid #818cf8;
+    outline-offset: 2px;
+  }
+
+  /* Ensure minimum touch target size */
+  button,
+  a,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* Respect user's motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* High contrast mode support */
+  .high-contrast {
+    --bg: #000000;
+    --fg: #ffffff;
+    --accent: #ffff00;
+  }
+
+  .high-contrast body {
+    background-color: var(--bg);
+    color: var(--fg);
+  }
+}
