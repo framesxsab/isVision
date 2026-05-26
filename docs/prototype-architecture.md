@@ -64,6 +64,21 @@ Start with simple serial JSON lines for fast prototyping:
 
 Later, move toward USB HID braille or a BRLTTY driver when the hardware behavior is stable.
 
+## PWA tactile lab
+
+The PWA includes a first implementation of this pipeline at `/tactile-output`.
+
+Current capabilities:
+
+- Convert text into six-dot debug braille cells.
+- Group cells into 1-cell, 4-cell, or 8-cell tactile frames.
+- Preview braille Unicode and individual dot positions.
+- Copy or save JSON Lines for firmware testing.
+- Send frames over Web Serial at 115200 baud in supported Chromium browsers.
+
+This is still a debug translator. Production braille should replace the internal
+mapping with Liblouis or a server-side Liblouis service.
+
 ## Hardware modules
 
 ### One-cell prototype
@@ -98,4 +113,3 @@ Options to investigate:
 - Which users should we optimize for first: students, programmers, deafblind users, or general screen reader users?
 - Can we build a low-cost actuator cell that is durable enough for daily use?
 - Is USB HID braille practical early, or should we start with serial and integrate later?
-

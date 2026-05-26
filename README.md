@@ -78,3 +78,32 @@ Run tests:
 ```bash
 python -m unittest discover -s tests
 ```
+
+## PWA development
+
+Run the frontend build check:
+
+```bash
+cd pwa
+nvm use
+npm run build
+```
+
+AI Vision uses a local API server so provider keys are not exposed in browser bundles:
+
+```bash
+cd pwa
+nvm use
+$env:NVIDIA_VISION_API_KEY="your-server-side-key"
+npm run server
+npm run dev
+```
+
+The PWA now includes a Tactile Output Lab at `/tactile-output`. It converts text
+into braille cell frames, previews the dot patterns, exports JSON Lines, and can
+send frames to a microcontroller through Web Serial in supported browsers.
+
+Hardware starter:
+
+- [Tactile protocol](docs/tactile-protocol.md)
+- [Single-cell Arduino firmware](firmware/single-cell-arduino/README.md)

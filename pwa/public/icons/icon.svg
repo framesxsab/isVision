@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="isVisible app icon">
+  <rect width="512" height="512" rx="96" fill="#111827"/>
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#818cf8" stroke-width="36"/>
+  <circle cx="256" cy="256" r="56" fill="#f9fafb"/>
+  <circle cx="168" cy="168" r="18" fill="#f9fafb"/>
+  <circle cx="256" cy="144" r="18" fill="#f9fafb"/>
+  <circle cx="344" cy="168" r="18" fill="#f9fafb"/>
+  <circle cx="168" cy="344" r="18" fill="#f9fafb"/>
+  <circle cx="256" cy="368" r="18" fill="#f9fafb"/>
+  <circle cx="344" cy="344" r="18" fill="#f9fafb"/>
+</svg>
