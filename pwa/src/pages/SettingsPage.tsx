@@ -20,13 +20,19 @@ export default function SettingsPage() {
     return () => speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
   }, []);
 
-  // Sync settings to speech engine
+  // Sync settings to speech engine whenever they change
   useEffect(() => {
     speechEngine.setRate(settings.speechRate);
+  }, [settings.speechRate]);
+  useEffect(() => {
     speechEngine.setPitch(settings.speechPitch);
+  }, [settings.speechPitch]);
+  useEffect(() => {
     speechEngine.setVolume(settings.speechVolume);
+  }, [settings.speechVolume]);
+  useEffect(() => {
     speechEngine.setVoice(settings.voiceURI);
-  }, [settings.speechRate, settings.speechPitch, settings.speechVolume, settings.voiceURI]);
+  }, [settings.voiceURI]);
 
   const testSpeech = () => {
     speechEngine.interrupt(
@@ -104,6 +110,7 @@ export default function SettingsPage() {
               value={settings.speechPitch}
               onChange={(e) => settings.setSpeechPitch(parseFloat(e.target.value))}
               className="w-full min-h-touch"
+              aria-valuetext={`Pitch ${settings.speechPitch.toFixed(1)}`}
             />
           </div>
 
@@ -143,6 +150,7 @@ export default function SettingsPage() {
               value={settings.fontSize}
               onChange={(e) => settings.setFontSize(parseInt(e.target.value))}
               className="w-full min-h-touch"
+              aria-valuetext={`${settings.fontSize} pixels`}
             />
           </div>
         </div>

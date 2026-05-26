@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { FocusTrap } from "@/core/a11y/FocusTrap";
 
 interface ModalProps {
@@ -9,6 +9,18 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
@@ -23,6 +35,8 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       <FocusTrap active>
         <div
           className="relative bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
           aria-labelledby="modal-title"
         >
           <h2 id="modal-title" className="text-xl font-bold text-white mb-4">
