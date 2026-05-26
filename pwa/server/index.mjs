@@ -2,6 +2,26 @@ import http from "node:http";
 import dns from "node:dns/promises";
 import { isIP } from "node:net";
 
+// One JSON line per event so logs are grep-able and ingestable by any log
+// aggregator (Cloud Run, Datadog, Loki, etc.). Levels follow the standard
+// debug < info < warn < error ordering; set LOG_LEVEL=warn in prod to drop
+// per-request access logs and keep only problems.
+const LOG_LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
+const LOG_LEVEL = LOG_LEVELS[process.env.LOG_LEVEL ?? "info"] ?? LOG_LEVELS.info;
+
+function log(level, msg, fields = {}) {
+  if ((LOG_LEVELS[level] ?? 0) < LOG_LEVEL) return;
+  const stream = level === "error" || level === "warn" ? process.stderr : process.stdout;
+  stream.write(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      msg,
+      ...fields,
+    }) + "\n"
+  );
+}
+
 const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
 const PORT = Number.parseInt(process.env.PORT ?? "8787", 10);
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
@@ -436,6 +456,20 @@ async function readerFetch(req, res, origin) {
 
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
+  const startNs = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    const durationMs = Number((process.hrtime.bigint() - startNs) / 1_000_000n);
+    const level = res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info";
+    log(level, "request", {
+      method: req.method,
+      path: req.url?.split("?")[0],
+      status: res.statusCode,
+      durationMs,
+      ip: clientIp(req),
+      origin: origin ?? "-",
+    });
+  });
 
   try {
     // CORS preflight.
@@ -489,26 +523,47 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 404, { error: "Not found." }, origin);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error.";
+    log("error", "handler_exception", {
+      path: req.url?.split("?")[0],
+      error: message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     sendJson(res, 500, { error: message }, origin);
   }
 });
 
 // Graceful shutdown so orchestrators don't lose in-flight requests.
 function shutdown(signal) {
-  console.log(`Received ${signal}, closing server...`);
+  log("info", "shutdown_start", { signal });
   server.close(() => {
-    console.log("Server closed.");
+    log("info", "shutdown_done");
     process.exit(0);
   });
   // Force-exit if close hangs.
-  setTimeout(() => process.exit(1), 10_000).unref();
+  setTimeout(() => {
+    log("error", "shutdown_forced");
+    process.exit(1);
+  }, 10_000).unref();
 }
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
+process.on("uncaughtException", (err) => {
+  log("error", "uncaught_exception", { error: err.message, stack: err.stack });
+});
+process.on("unhandledRejection", (reason) => {
+  log("error", "unhandled_rejection", {
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
 server.listen(PORT, () => {
-  console.log(`isVisible API server listening on http://localhost:${PORT}`);
-  console.log(`  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS.join(", ")}`);
-  console.log(`  API_TOKEN: ${API_TOKEN ? "set (auth required)" : "unset (auth disabled)"}`);
-  console.log(`  UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS}`);
+  log("info", "listening", {
+    port: PORT,
+    allowedOrigins: ALLOWED_ORIGINS,
+    authRequired: Boolean(API_TOKEN),
+    upstreamTimeoutMs: UPSTREAM_TIMEOUT_MS,
+    logLevel: process.env.LOG_LEVEL ?? "info",
+  });
 });
