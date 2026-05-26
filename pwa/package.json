@@ -4,16 +4,22 @@
   "version": "0.1.0",
   "description": "Accessibility platform for blind and visually impaired users",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "check-env": "node scripts/check-env-leakage.mjs",
+    "prebuild": "npm run check-env",
+    "build": "tsc -b && node scripts/vite-build.mjs",
     "preview": "vite preview",
-    "server": "tsx server/index.ts"
+    "server": "node server/index.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.1",
+    "react-router-dom": "6.30.3",
     "zustand": "^5.0.5"
   },
   "devDependencies": {
@@ -25,6 +31,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vite-plugin-pwa": "^0.21.1"
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^3.2.4"
   }
 }
