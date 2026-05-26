@@ -36,6 +36,7 @@ export function useGlobalVoiceHotkey() {
             navigate_touch_explorer: "/touch-explorer",
             navigate_ai_vision: "/ai-vision",
             navigate_reader: "/reader",
+            navigate_tactile_output: "/tactile-output",
           };
 
           const path = navMap[match.command.action];
@@ -45,11 +46,11 @@ export function useGlobalVoiceHotkey() {
             speechEngine.stop();
           } else if (match.command.action === "navigate_back") {
             navigate(-1);
-          } else if (match.command.action === "help") {
-            speechEngine.interrupt(
-              "Press F6 to speak a command. Say: go home, settings, touch explorer, camera, reader, or voice nav."
-            );
-          }
+            } else if (match.command.action === "help") {
+              speechEngine.interrupt(
+                "Press F6 to speak a command. Say: go home, settings, touch explorer, camera, reader, tactile lab, or voice nav."
+              );
+            }
         } else {
           speechEngine.interrupt(
             `I didn't understand "${transcript}". Press F6 and try again.`

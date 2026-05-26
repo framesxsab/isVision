@@ -58,6 +58,19 @@ export function IconMicrophone({ className = "w-6 h-6" }: IconProps) {
   );
 }
 
+export function IconBraille({ className = "w-6 h-6" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <circle cx="8" cy="6" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="18" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="6" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="18" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function IconArrowLeft({ className = "w-6 h-6" }: IconProps) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">

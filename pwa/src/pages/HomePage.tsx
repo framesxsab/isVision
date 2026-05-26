@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/Card";
-import { IconTouch, IconCamera, IconBook, IconMicrophone } from "@/components/Icons";
+import { IconTouch, IconCamera, IconBook, IconMicrophone, IconBraille } from "@/components/Icons";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useInstallPrompt } from "@/core/hooks/useInstallPrompt";
 import { Button } from "@/components/Button";
@@ -43,6 +43,13 @@ const modules: ModuleInfo[] = [
     description: "Speak commands to control everything. Hands-free operation.",
     icon: <IconMicrophone className="w-6 h-6 text-primary-300" />,
     path: "/voice-nav",
+  },
+  {
+    id: "tactile-output",
+    title: "Tactile Output Lab",
+    description: "Convert text into braille frames for a tactile hardware prototype.",
+    icon: <IconBraille className="w-6 h-6 text-primary-300" />,
+    path: "/tactile-output",
   },
 ];
 

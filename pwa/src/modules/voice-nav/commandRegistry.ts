@@ -90,6 +90,13 @@ export const commands: Command[] = [
     action: "navigate_reader",
   },
   {
+    name: "open_tactile_output",
+    patterns: ["tactile output", "braille lab", "tactile lab", "open braille"],
+    description: "Open Tactile Output Lab",
+    module: "tactile-output",
+    action: "navigate_tactile_output",
+  },
+  {
     name: "play",
     patterns: ["play", "start reading", "read aloud", "read this"],
     description: "Start or resume reading",

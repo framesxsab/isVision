@@ -6,6 +6,7 @@
 class SpeechRecognitionEngine {
   private recognition: InstanceType<{ new (): { start(): void; stop(): void; abort(): void; continuous: boolean; interimResults: boolean; lang: string; onresult: ((e: { results: SpeechRecognitionResultList }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null } }> | null = null;
   private isListening = false;
+  private readonly timeoutMs = 10000;
 
   get isSupported(): boolean {
     return (
@@ -37,33 +38,52 @@ class SpeechRecognitionEngine {
       r.interimResults = false;
       r.lang = "en-US";
 
+      let settled = false;
+      const timeout = window.setTimeout(() => {
+        finish(() => reject(new Error("No speech detected. Try again.")));
+        r.abort();
+      }, this.timeoutMs);
+
+      const finish = (complete: () => void) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        this.isListening = false;
+        complete();
+      };
+
       r.onresult = (event: { results: SpeechRecognitionResultList }) => {
         const result = event.results[0];
-        if (result?.[0]) {
-          resolve(result[0].transcript.trim());
+        const alternative = result?.[0];
+        if (alternative) {
+          finish(() => resolve(alternative.transcript.trim()));
         } else {
-          reject(new Error("No speech detected"));
+          finish(() => reject(new Error("No speech detected")));
         }
-        this.isListening = false;
       };
 
       r.onerror = (event: { error: string }) => {
-        this.isListening = false;
         if (event.error === "no-speech") {
-          reject(new Error("No speech detected. Try again."));
+          finish(() => reject(new Error("No speech detected. Try again.")));
         } else if (event.error === "not-allowed") {
-          reject(new Error("Microphone access denied. Please grant permission."));
+          finish(() => reject(new Error("Microphone access denied. Please grant permission.")));
         } else {
-          reject(new Error(`Speech recognition error: ${event.error}`));
+          finish(() => reject(new Error(`Speech recognition error: ${event.error}`)));
         }
       };
 
       r.onend = () => {
-        this.isListening = false;
+        finish(() => reject(new Error("No speech detected. Try again.")));
       };
 
       this.isListening = true;
-      r.start();
+      try {
+        r.start();
+      } catch (err) {
+        finish(() =>
+          reject(err instanceof Error ? err : new Error("Could not start speech recognition."))
+        );
+      }
     });
   }
 

@@ -3,7 +3,7 @@
  * URL input at top, article content in center, reading controls at bottom.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReader } from "./useReader";
 import { Button } from "@/components/Button";
@@ -21,6 +21,8 @@ export default function ReaderPage() {
   const highContrast = useSettingsStore((s) => s.highContrast);
   const speechRate = useSettingsStore((s) => s.speechRate);
   const setSpeechRate = useSettingsStore((s) => s.setSpeechRate);
+  const speechRateRef = useRef(speechRate);
+  speechRateRef.current = speechRate;
 
   const {
     title,
@@ -60,24 +62,28 @@ export default function ReaderPage() {
           e.preventDefault();
           prevChunk();
           break;
-        case "ArrowUp":
+        case "ArrowUp": {
           e.preventDefault();
-          setSpeechRate(Math.min(3, speechRate + 0.2));
-          speechEngine.setRate(speechRate + 0.2);
-          announce(`Speed ${(speechRate + 0.2).toFixed(1)}x`);
+          const newUp = Math.min(3, speechRateRef.current + 0.2);
+          setSpeechRate(newUp);
+          speechEngine.setRate(newUp);
+          announce(`Speed ${newUp.toFixed(1)}x`);
           break;
-        case "ArrowDown":
+        }
+        case "ArrowDown": {
           e.preventDefault();
-          setSpeechRate(Math.max(0.5, speechRate - 0.2));
-          speechEngine.setRate(speechRate - 0.2);
-          announce(`Speed ${(speechRate - 0.2).toFixed(1)}x`);
+          const newDown = Math.max(0.5, speechRateRef.current - 0.2);
+          setSpeechRate(newDown);
+          speechEngine.setRate(newDown);
+          announce(`Speed ${newDown.toFixed(1)}x`);
           break;
+        }
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [announce, togglePlayPause, nextChunk, prevChunk, speechRate, setSpeechRate]);
+  }, [announce, togglePlayPause, nextChunk, prevChunk, setSpeechRate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

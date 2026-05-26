@@ -69,6 +69,10 @@ export default function VoiceNavPage() {
           navigate("/reader");
           speechEngine.interrupt("Opening Accessible Reader.");
           break;
+        case "navigate_tactile_output":
+          navigate("/tactile-output");
+          speechEngine.interrupt("Opening Tactile Output Lab.");
+          break;
         case "stop_speech":
           speechEngine.stop();
           break;
@@ -145,6 +149,7 @@ export default function VoiceNavPage() {
     "touch-explorer": "Touch Explorer",
     "ai-vision": "AI Vision",
     reader: "Reader",
+    "tactile-output": "Tactile Output",
   };
 
   return (
