@@ -4,6 +4,12 @@
  * Produces clean, accessible semantic HTML.
  */
 
+import DOMPurify from "dompurify";
+
+// http(s), mailto, tel, and same-document fragments. No javascript:, data:,
+// vbscript:, or other dynamic schemes.
+const SAFE_URI = /^(?:(?:https?|mailto|tel):|#|\/)/i;
+
 /** Extract the main readable content from an HTML string. */
 export function cleanContent(html: string, baseUrl?: string): {
   title: string;
@@ -20,6 +26,14 @@ export function cleanContent(html: string, baseUrl?: string): {
     "style",
     "noscript",
     "iframe",
+    "object",
+    "embed",
+    "svg",
+    "math",
+    "base",
+    "link",
+    "meta",
+    "template",
     "nav",
     "header:not(article header)",
     "footer:not(article footer)",
@@ -90,13 +104,32 @@ export function cleanContent(html: string, baseUrl?: string): {
     });
   }
 
+  const safeHtml = DOMPurify.sanitize(article.innerHTML, {
+    USE_PROFILES: { html: true },
+    // DOMPurify already strips <script>, event handlers, and unsafe URIs.
+    // We additionally forbid form/iframe/object/embed (re-asserted in case a
+    // profile change loosens defaults) and harden the URI allow-list.
+    FORBID_TAGS: ["form", "iframe", "object", "embed", "input", "textarea", "select", "button", "style", "link"],
+    FORBID_ATTR: ["style", "srcdoc", "formaction", "ping"],
+    ALLOWED_URI_REGEXP: SAFE_URI,
+  });
+
   return {
     title,
-    content: article.innerHTML,
+    content: safeHtml,
     textContent: article.textContent?.trim() ?? "",
     headings,
   };
 }
+
+// DOMPurify hook: any link rendered with target="_blank" gets
+// rel="noopener noreferrer" so it cannot reach back into the opener via
+// window.opener.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A" && node.getAttribute("target") === "_blank") {
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+});
 
 /**
  * Split text into speakable chunks at sentence boundaries.
