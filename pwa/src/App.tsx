@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import { SkipLinks } from "@/core/a11y/SkipLinks";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { TabBar } from "@/components/TabBar";
 import { useSettingsStore } from "@/core/store/settingsStore";
@@ -19,6 +20,7 @@ const TouchExplorerPage = lazy(() => import("@/modules/touch-explorer/TouchExplo
 const VisionAssistantPage = lazy(() => import("@/modules/ai-vision/VisionAssistantPage"));
 const ReaderPage = lazy(() => import("@/modules/reader/ReaderPage"));
 const VoiceNavPage = lazy(() => import("@/modules/voice-nav/VoiceNavPage"));
+const TactileOutputPage = lazy(() => import("@/modules/tactile-output/TactileOutputPage"));
 
 function PageLoader() {
   return (
@@ -43,6 +45,7 @@ export default function App() {
   return (
     <div className={highContrast ? "high-contrast" : ""}>
       <SkipLinks />
+      <UpdateBanner />
       <OfflineBanner />
       <main id="main-content" className="pb-20">
         <ErrorBoundary moduleName="app">
@@ -80,6 +83,14 @@ export default function App() {
                 element={
                   <ErrorBoundary moduleName="Voice Navigation">
                     <VoiceNavPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/tactile-output"
+                element={
+                  <ErrorBoundary moduleName="Tactile Output Lab">
+                    <TactileOutputPage />
                   </ErrorBoundary>
                 }
               />

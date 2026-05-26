@@ -2,13 +2,24 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
+import { webcrypto } from "node:crypto";
+
+Object.defineProperty(globalThis, "crypto", {
+  value: webcrypto,
+  configurable: true,
+});
 
 export default defineConfig({
+  server: {
+    proxy: {
+      "/api": "http://localhost:8787",
+    },
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["icons/*.png", "sounds/*.mp3"],
+      registerType: "prompt",
+      includeAssets: ["icons/*.svg", "sounds/*.mp3"],
       manifest: {
         name: "isVisible — Accessibility Platform",
         short_name: "isVisible",
@@ -21,14 +32,14 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "/icons/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
+            src: "/icons/icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
           },
           {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
+            src: "/icons/icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
             purpose: "any maskable",
           },
         ],
