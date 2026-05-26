@@ -17,9 +17,17 @@
 import { createCell, type BrailleCell } from "./brailleFrames";
 
 const SCRIPT_URL = "/liblouis/easy-api.js";
+// The Worker is spawned from a blob: URL, so any relative path it tries to
+// fetch (importScripts or table-file XHR) would resolve against the blob
+// origin — invalid. Path-absolute URLs sidestep that: the Worker inherits the
+// parent document's origin, so '/tables/foo' lands on '<origin>/tables/foo'.
+//
+// EasyApiAsync also concatenates window.location.origin + "/" + capi/easyapi,
+// so we omit the leading slash on those two to avoid a double slash; the
+// table URL is consumed verbatim by the dynamic loader and needs the slash.
 const CAPI_URL = "liblouis/build-no-tables-utf16.js";
 const EASYAPI_URL = "liblouis/easy-api.js";
-const TABLES_URL = "tables/";
+const TABLES_URL = "/tables/";
 const GRADE_2_TABLE = "unicode.dis,en-ueb-g2.ctb";
 
 const INIT_TIMEOUT_MS = 15_000;
