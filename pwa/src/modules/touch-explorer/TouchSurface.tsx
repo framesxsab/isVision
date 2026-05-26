@@ -24,7 +24,7 @@ export function TouchSurface() {
           <button className="bg-primary-600 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">
             Submit form
           </button>
-          <button className="bg-green-600 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">
+          <button className="bg-green-700 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">
             Save changes
           </button>
           <button

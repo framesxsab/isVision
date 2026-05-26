@@ -16,7 +16,7 @@ export default function NotFoundPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto">
-      <div className="text-6xl font-bold text-gray-600 mb-4" aria-hidden="true">
+      <div className="text-6xl font-bold text-gray-300 mb-4" aria-hidden="true">
         404
       </div>
       <h1 className="text-2xl font-bold text-white mb-2">Page not found</h1>

@@ -276,7 +276,7 @@ export default function TactileOutputPage() {
             ))}
           </div>
           {cells.length > 32 && (
-            <p className="text-gray-500 text-sm mt-2">{cells.length - 32} more cells in JSON output.</p>
+            <p className="text-gray-400 text-sm mt-2">{cells.length - 32} more cells in JSON output.</p>
           )}
         </section>
 
@@ -285,7 +285,7 @@ export default function TactileOutputPage() {
             <h2 id="output-heading" className="text-lg font-semibold text-white">
               Output
             </h2>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-400">
               {outputFormat === "json" ? "JSON Lines" : "Firmware text"}
             </span>
           </div>

@@ -94,18 +94,18 @@ export default function HomePage() {
           <Button onClick={install} size="lg" className="w-full">
             Install isVisible on your device
           </Button>
-          <p className="text-gray-500 text-sm text-center mt-2">
+          <p className="text-gray-400 text-sm text-center mt-2">
             Add to home screen for quick access
           </p>
         </section>
       )}
 
       {/* Keyboard hint */}
-      <p className="mt-8 text-center text-sm text-gray-600">
+      <p className="mt-8 text-center text-sm text-gray-400">
         Press F6 anywhere to speak a voice command
       </p>
 
-      <footer className="mt-6 text-center text-sm text-gray-500">
+      <footer className="mt-6 text-center text-sm text-gray-400">
         <p>Built for the community. Open source.</p>
       </footer>
     </div>

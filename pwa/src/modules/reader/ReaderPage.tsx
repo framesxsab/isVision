@@ -186,7 +186,7 @@ export default function ReaderPage() {
             />
           ) : (
             !isLoading && !error && (
-              <div className="text-center text-gray-500 py-20">
+              <div className="text-center text-gray-400 py-20">
                 <p className="text-xl mb-2">Enter a URL above to start reading</p>
                 <p className="text-sm">
                   Keyboard: Space = play/pause, ←→ = navigate, ↑↓ = speed
@@ -237,7 +237,7 @@ export default function ReaderPage() {
 
           {/* Progress */}
           <div className="max-w-lg mx-auto mt-2">
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-gray-400">
               <span>
                 {currentChunk + 1} / {chunks.length}
               </span>
