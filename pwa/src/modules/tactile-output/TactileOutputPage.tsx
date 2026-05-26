@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { IconArrowLeft, IconBraille, IconRefresh, IconUpload } from "@/components/Icons";
@@ -43,6 +43,50 @@ export default function TactileOutputPage() {
   const [cells, setCells] = useState<BrailleCell[]>(() => translateGrade1Debug(DEFAULT_TEXT));
   const [translatorBusy, setTranslatorBusy] = useState(false);
   const [translatorError, setTranslatorError] = useState<string | null>(null);
+
+  useEffect(() => {
+    announce(
+      "Tactile Lab. Edit the source text, pick a translator, and stream frames to a connected device."
+    );
+  }, [announce]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Don't steal keystrokes from the source-text textarea, the hold-time
+      // input, or any other form control the user is actively typing into.
+      const target = e.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      // Plain unmodified letters only — leave OS chords alone.
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      switch (e.key.toLowerCase()) {
+        case "c":
+          e.preventDefault();
+          copyFramesRef.current();
+          break;
+        case "s":
+          e.preventDefault();
+          saveFramesRef.current();
+          break;
+        case "n":
+          e.preventDefault();
+          sendSerialRef.current();
+          break;
+        case "v":
+          e.preventDefault();
+          speakPreviewRef.current();
+          break;
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (translatorMode === "g1") {
@@ -118,6 +162,13 @@ export default function TactileOutputPage() {
     speechEngine.interrupt(`${cells.length} cells in ${frames.length} frames. ${braillePreview}`);
   };
 
+  // Refs are updated by every render so the keydown handler always calls
+  // the latest closure without us having to re-attach the listener.
+  const copyFramesRef = useRef<() => void>(() => {});
+  const saveFramesRef = useRef<() => void>(() => {});
+  const speakPreviewRef = useRef<() => void>(() => {});
+  const sendSerialRef = useRef<() => void>(() => {});
+
   const sendSerial = async () => {
     const serial = (navigator as NavigatorWithSerial).serial;
     if (!serial) {
@@ -154,6 +205,11 @@ export default function TactileOutputPage() {
     }
   };
 
+  copyFramesRef.current = copyFrames;
+  saveFramesRef.current = saveFrames;
+  speakPreviewRef.current = speakPreview;
+  sendSerialRef.current = sendSerial;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
@@ -162,7 +218,9 @@ export default function TactileOutputPage() {
             <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
           </Button>
           <h1 className="text-lg font-bold text-white">Tactile Lab</h1>
-          <span className="text-sm text-gray-400 w-20 text-right" role="status">
+          {/* Visual-only mirror of the status. The AriaLiveProvider already owns
+              the polite live region — duplicating it here would double-announce. */}
+          <span className="text-sm text-gray-400 w-20 text-right" aria-hidden="true">
             {status}
           </span>
         </div>
@@ -295,18 +353,22 @@ export default function TactileOutputPage() {
             <label htmlFor="hold-ms" className="text-gray-300">
               Frame hold time
             </label>
-            <input
-              id="hold-ms"
-              type="number"
-              min={100}
-              max={5000}
-              step={50}
-              value={holdMs}
-              onChange={(event) => setHoldMs(Math.max(100, Math.min(5000, Number(event.target.value) || 900)))}
-              className="w-28 bg-gray-900 text-white border border-gray-700 rounded-lg px-3 py-2"
-              aria-describedby="hold-ms-unit"
-            />
-            <span id="hold-ms-unit" className="sr-only">milliseconds</span>
+            <div className="flex items-center gap-2">
+              <input
+                id="hold-ms"
+                type="number"
+                min={100}
+                max={5000}
+                step={50}
+                value={holdMs}
+                onChange={(event) => setHoldMs(Math.max(100, Math.min(5000, Number(event.target.value) || 900)))}
+                className="w-24 bg-gray-900 text-white border border-gray-700 rounded-lg px-3 py-2"
+                aria-describedby="hold-ms-unit"
+              />
+              <span id="hold-ms-unit" className="text-gray-300" aria-label="milliseconds">
+                ms
+              </span>
+            </div>
           </div>
 
           <label className="mt-3 flex items-center gap-3 min-h-touch">
@@ -325,8 +387,8 @@ export default function TactileOutputPage() {
             <h2 id="preview-heading" className="text-lg font-semibold text-white">
               Braille Preview
             </h2>
-            <Button variant="secondary" onClick={speakPreview}>
-              Speak
+            <Button variant="secondary" onClick={speakPreview} aria-keyshortcuts="V">
+              Speak (V)
             </Button>
           </div>
 
@@ -385,16 +447,19 @@ export default function TactileOutputPage() {
 
       <div className="fixed bottom-16 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
         <div className="max-w-lg mx-auto grid grid-cols-3 gap-2">
-          <Button variant="secondary" onClick={copyFrames}>
-            Copy
+          <Button variant="secondary" onClick={copyFrames} aria-keyshortcuts="C">
+            Copy (C)
           </Button>
-          <Button variant="secondary" onClick={saveFrames}>
-            <IconUpload className="w-5 h-5 inline mr-1" /> Save
+          <Button variant="secondary" onClick={saveFrames} aria-keyshortcuts="S">
+            <IconUpload className="w-5 h-5 inline mr-1" /> Save (S)
           </Button>
-          <Button onClick={sendSerial}>
-            <IconBraille className="w-5 h-5 inline mr-1" /> Send
+          <Button onClick={sendSerial} aria-keyshortcuts="N">
+            <IconBraille className="w-5 h-5 inline mr-1" /> Send (N)
           </Button>
         </div>
+        <p className="max-w-lg mx-auto text-center text-xs text-gray-400 mt-2">
+          Keyboard: C copy, S save, N send, V speak preview. F6 anywhere for voice.
+        </p>
       </div>
     </div>
   );
