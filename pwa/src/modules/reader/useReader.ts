@@ -51,7 +51,7 @@ export function useReader() {
       speechEngine.interrupt("Loading article. Please wait.");
 
       try {
-        const html = await fetchWithCorsProxy(url);
+        const html = await fetchArticleHtml(url);
 
         const { title, content, textContent, headings } = cleanContent(html, url);
         const chunks = splitIntoChunks(textContent);
@@ -242,26 +242,26 @@ export function useReader() {
 }
 
 /**
- * Fetch a URL's HTML content, falling back through CORS proxy strategies.
- * 1. Direct fetch (works for same-origin or CORS-enabled sites)
- * 2. allorigins.win public proxy (free, no key needed)
+ * Fetch an article through our own server-side fetcher. The server validates
+ * the URL, refuses private/link-local IPs (SSRF), caps the body size,
+ * enforces a timeout, follows redirects with a hop limit, and strips cookies.
+ * We no longer touch any third-party CORS proxy.
  */
-async function fetchWithCorsProxy(url: string): Promise<string> {
-  // Try direct fetch first
-  try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (response.ok) return await response.text();
-  } catch {
-    // CORS error or timeout — fall through to proxy
-  }
+async function fetchArticleHtml(url: string): Promise<string> {
+  const response = await fetch("/api/reader/fetch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(15000),
+  });
 
-  // Fallback: allorigins.win public CORS proxy
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(
-      `Could not load the page. The website may be blocking access. Status: ${response.status}`
+      data.error ?? `Could not load the page. Status: ${response.status}`
     );
   }
-  return await response.text();
+
+  const data = (await response.json()) as { html?: string };
+  return data.html ?? "";
 }

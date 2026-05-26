@@ -1,9 +1,15 @@
 import http from "node:http";
+import dns from "node:dns/promises";
+import { isIP } from "node:net";
 
 const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
 const PORT = Number.parseInt(process.env.PORT ?? "8787", 10);
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const UPSTREAM_TIMEOUT_MS = Number.parseInt(process.env.UPSTREAM_TIMEOUT_MS ?? "30000", 10);
+
+const READER_FETCH_MAX_BYTES = Number.parseInt(process.env.READER_FETCH_MAX_BYTES ?? "2097152", 10);
+const READER_FETCH_TIMEOUT_MS = Number.parseInt(process.env.READER_FETCH_TIMEOUT_MS ?? "10000", 10);
+const READER_FETCH_MAX_REDIRECTS = 3;
 
 // Origin allowlist. Only requests whose Origin header matches one of these are
 // served. Defaults cover Vite dev (5173) and preview (4173). In production set
@@ -26,6 +32,10 @@ const RATE_LIMITS = {
   "/api/voice/intent": {
     max: Number.parseInt(process.env.INTENT_RATE_MAX ?? "60", 10),
     windowMs: Number.parseInt(process.env.INTENT_RATE_WINDOW_MS ?? "60000", 10),
+  },
+  "/api/reader/fetch": {
+    max: Number.parseInt(process.env.READER_RATE_MAX ?? "30", 10),
+    windowMs: Number.parseInt(process.env.READER_RATE_WINDOW_MS ?? "60000", 10),
   },
 };
 
@@ -247,6 +257,183 @@ async function parseIntent(req, res, origin) {
   }
 }
 
+// --- SSRF-safe URL fetcher (used by /api/reader/fetch) -----------------------
+
+// IPv4 ranges the fetcher must refuse to connect to. RFC 1918 + IETF
+// special-purpose registries. Each entry is [base, prefix-length].
+const PRIVATE_V4 = [
+  ["0.0.0.0", 8],          // "this network"
+  ["10.0.0.0", 8],         // RFC 1918
+  ["100.64.0.0", 10],      // carrier-grade NAT
+  ["127.0.0.0", 8],        // loopback
+  ["169.254.0.0", 16],     // link-local (includes cloud metadata 169.254.169.254)
+  ["172.16.0.0", 12],      // RFC 1918
+  ["192.0.0.0", 24],       // IETF protocol assignments
+  ["192.0.2.0", 24],       // TEST-NET-1
+  ["192.168.0.0", 16],     // RFC 1918
+  ["198.18.0.0", 15],      // network benchmarking
+  ["198.51.100.0", 24],    // TEST-NET-2
+  ["203.0.113.0", 24],     // TEST-NET-3
+  ["224.0.0.0", 4],        // multicast
+  ["240.0.0.0", 4],        // reserved
+];
+
+function ipv4ToInt(ip) {
+  return ip.split(".").reduce((a, o) => (a << 8) | (Number(o) & 0xff), 0) >>> 0;
+}
+
+function isPrivateIPv4(ip) {
+  const num = ipv4ToInt(ip);
+  for (const [base, prefix] of PRIVATE_V4) {
+    const baseNum = ipv4ToInt(base);
+    const mask = prefix === 0 ? 0 : ((~0 << (32 - prefix)) >>> 0);
+    if ((num & mask) === (baseNum & mask)) return true;
+  }
+  return false;
+}
+
+function isPrivateIPv6(ip) {
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d) — recurse on the v4 part.
+  if (lower.startsWith("::ffff:")) {
+    const v4 = lower.slice(7);
+    if (isIP(v4) === 4) return isPrivateIPv4(v4);
+  }
+
+  // Parse the first 16-bit group as a hex number.
+  const firstGroup = lower.split(":")[0];
+  if (!firstGroup) return true;
+  const firstNum = Number.parseInt(firstGroup, 16);
+  if (!Number.isFinite(firstNum)) return true;
+
+  // Unique local fc00::/7 (0xfc00–0xfdff).
+  if (firstNum >= 0xfc00 && firstNum <= 0xfdff) return true;
+  // Link-local fe80::/10 (0xfe80–0xfebf).
+  if (firstNum >= 0xfe80 && firstNum <= 0xfebf) return true;
+  // Global unicast is 2000::/3 (0x2000–0x3fff). Anything outside is reserved
+  // or unallocated — deny by default.
+  if (firstNum < 0x2000 || firstNum > 0x3fff) return true;
+  // Documentation 2001:db8::/32.
+  if (firstNum === 0x2001 && lower.split(":")[1] === "db8") return true;
+
+  return false;
+}
+
+async function assertHostnamePublic(hostname) {
+  const kind = isIP(hostname);
+  if (kind === 4) {
+    if (isPrivateIPv4(hostname)) throw new Error(`URL resolves to a private address (${hostname}).`);
+    return;
+  }
+  if (kind === 6) {
+    if (isPrivateIPv6(hostname)) throw new Error(`URL resolves to a private address (${hostname}).`);
+    return;
+  }
+  let records;
+  try {
+    records = await dns.lookup(hostname, { all: true });
+  } catch {
+    throw new Error(`Could not resolve ${hostname}.`);
+  }
+  for (const { address, family } of records) {
+    if (family === 4 && isPrivateIPv4(address)) {
+      throw new Error(`URL resolves to a private address (${address}).`);
+    }
+    if (family === 6 && isPrivateIPv6(address)) {
+      throw new Error(`URL resolves to a private address (${address}).`);
+    }
+  }
+}
+
+async function fetchUrlSafely(rawUrl, hops = 0) {
+  if (hops > READER_FETCH_MAX_REDIRECTS) {
+    throw new Error("Too many redirects.");
+  }
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Only http(s) URLs are allowed.");
+  }
+  await assertHostnamePublic(url.hostname);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), READER_FETCH_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "User-Agent": "isVisible-Reader/1.0",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
+      },
+      redirect: "manual",
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (err && err.name === "AbortError") throw new Error("Upstream timeout.");
+    throw new Error("Upstream fetch failed.");
+  }
+  clearTimeout(timer);
+
+  // Manual redirect handling so each hop gets re-checked for SSRF.
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (!location) throw new Error("Redirect with no Location header.");
+    const next = new URL(location, url.toString()).toString();
+    return fetchUrlSafely(next, hops + 1);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Upstream returned ${response.status}.`);
+  }
+
+  // Stream-read with a hard byte cap so a hostile site can't tar-pit us.
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  let total = 0;
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > READER_FETCH_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error(`Response exceeds ${READER_FETCH_MAX_BYTES} bytes.`);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+}
+
+async function readerFetch(req, res, origin) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch (err) {
+    sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid request." }, origin);
+    return;
+  }
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  if (!url) {
+    sendJson(res, 400, { error: "url is required." }, origin);
+    return;
+  }
+  try {
+    const html = await fetchUrlSafely(url);
+    sendJson(res, 200, { html }, origin);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Fetch failed.";
+    sendJson(res, 400, { error: message }, origin);
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
 
@@ -291,6 +478,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && req.url === "/api/voice/intent") {
       await parseIntent(req, res, origin);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/reader/fetch") {
+      await readerFetch(req, res, origin);
       return;
     }
 
