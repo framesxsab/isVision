@@ -14,7 +14,8 @@
     "build": "tsc -b && node scripts/vite-build.mjs",
     "preview": "vite preview",
     "server": "node server/index.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:a11y": "playwright test"
   },
   "dependencies": {
     "dompurify": "^3.4.5",
@@ -24,6 +25,8 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@playwright/test": "^1.60.0",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.5.2",
