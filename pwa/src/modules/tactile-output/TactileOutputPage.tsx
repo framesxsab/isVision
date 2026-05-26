@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { IconArrowLeft, IconBraille, IconRefresh, IconUpload } from "@/components/Icons";
@@ -9,6 +9,7 @@ import {
   serializeCompactFrames,
   serializeFrames,
   translateGrade1Debug,
+  type BrailleCell,
   type TactileFrame,
 } from "./brailleFrames";
 
@@ -27,6 +28,7 @@ type NavigatorWithSerial = Navigator & {
 const DEFAULT_TEXT = "isVisible tactile output lab";
 const GROUP_SIZES = [1, 4, 8];
 type OutputFormat = "json" | "compact";
+type TranslatorMode = "g1" | "g2";
 
 export default function TactileOutputPage() {
   const navigate = useNavigate();
@@ -37,8 +39,44 @@ export default function TactileOutputPage() {
   const [holdMs, setHoldMs] = useState(900);
   const [blankBetweenFrames, setBlankBetweenFrames] = useState(true);
   const [status, setStatus] = useState("Ready");
+  const [translatorMode, setTranslatorMode] = useState<TranslatorMode>("g1");
+  const [cells, setCells] = useState<BrailleCell[]>(() => translateGrade1Debug(DEFAULT_TEXT));
+  const [translatorBusy, setTranslatorBusy] = useState(false);
+  const [translatorError, setTranslatorError] = useState<string | null>(null);
 
-  const cells = useMemo(() => translateGrade1Debug(text), [text]);
+  useEffect(() => {
+    if (translatorMode === "g1") {
+      setTranslatorBusy(false);
+      setTranslatorError(null);
+      setCells(translateGrade1Debug(text));
+      return;
+    }
+
+    let cancelled = false;
+    setTranslatorBusy(true);
+    setTranslatorError(null);
+
+    // Dynamic import keeps the ~1.6 MB Liblouis WASM off the initial bundle.
+    import("./liblouisAdapter")
+      .then(({ translateGrade2 }) => translateGrade2(text))
+      .then((result) => {
+        if (cancelled) return;
+        setCells(result);
+        setTranslatorBusy(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Liblouis failed to translate.";
+        setTranslatorError(message);
+        setCells(translateGrade1Debug(text));
+        setTranslatorBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [text, translatorMode]);
+
   const frames = useMemo(() => buildTactileFrames(cells, groupSize), [cells, groupSize]);
   const frameText = useMemo(() => serializeFrames(frames), [frames]);
   const compactText = useMemo(
@@ -150,6 +188,53 @@ export default function TactileOutputPage() {
             className="w-full min-h-36 bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 leading-relaxed"
             spellCheck={false}
           />
+        </section>
+
+        <section aria-labelledby="translator-heading">
+          <h2 id="translator-heading" className="text-lg font-semibold text-white mb-3">
+            Translator
+          </h2>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Braille translation mode">
+            <button
+              type="button"
+              onClick={() => setTranslatorMode("g1")}
+              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
+                translatorMode === "g1"
+                  ? "bg-primary-600 border-primary-300 text-white"
+                  : "bg-gray-900 border-gray-700 text-gray-300"
+              }`}
+              aria-pressed={translatorMode === "g1"}
+            >
+              Grade 1 (debug)
+            </button>
+            <button
+              type="button"
+              onClick={() => setTranslatorMode("g2")}
+              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
+                translatorMode === "g2"
+                  ? "bg-primary-600 border-primary-300 text-white"
+                  : "bg-gray-900 border-gray-700 text-gray-300"
+              }`}
+              aria-pressed={translatorMode === "g2"}
+              aria-describedby="translator-help"
+            >
+              Grade 2 (Liblouis)
+            </button>
+          </div>
+          <p id="translator-help" className="text-sm text-gray-300 mt-2">
+            Grade 1 uses the bundled debug mapping. Grade 2 loads Liblouis (UEB, contracted)
+            on demand — first use downloads about 1.6 MB.
+          </p>
+          {translatorBusy && (
+            <p className="text-sm text-primary-300 mt-2" role="status" aria-live="polite">
+              Translating with Liblouis…
+            </p>
+          )}
+          {translatorError && (
+            <p className="text-sm text-red-300 mt-2" role="alert">
+              Liblouis failed ({translatorError}). Falling back to Grade 1.
+            </p>
+          )}
         </section>
 
         <section aria-labelledby="frame-heading">

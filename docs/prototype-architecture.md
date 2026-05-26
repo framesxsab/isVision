@@ -76,8 +76,18 @@ Current capabilities:
 - Copy or save JSON Lines for firmware testing.
 - Send frames over Web Serial at 115200 baud in supported Chromium browsers.
 
-This is still a debug translator. Production braille should replace the internal
-mapping with Liblouis or a server-side Liblouis service.
+The Tactile Lab now exposes two translators:
+
+- **Grade 1 (debug)** — the bundled in-process mapping. Sync, ships with the
+  initial JS, used for tests and as the fallback when Liblouis can't load.
+- **Grade 2 (Liblouis)** — Unified English Braille contracted, served via the
+  liblouis-js Easy-API running in a Web Worker. The ~1.6 MB WASM build and
+  the UEB table set are kept out of the install-time precache and fetched on
+  first use; once cached they work offline.
+
+Adding a new table set (e.g. another language) means appending its files to
+`scripts/copy-liblouis-assets.mjs` and adding a second mode to
+`TactileOutputPage`.
 
 ## Hardware modules
 

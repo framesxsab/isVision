@@ -46,6 +46,23 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,mp3}"],
+        // The Liblouis WASM build is ~1.6 MB. Keep it out of the install-time
+        // precache and cache it on first use instead — most users never open
+        // Grade 2 mode, and paying that cost up front would dwarf the rest of
+        // the install footprint.
+        globIgnores: ["**/liblouis/**"],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith("/liblouis/") || url.pathname.startsWith("/tables/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "liblouis-assets-v1",
+              expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

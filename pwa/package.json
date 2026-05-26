@@ -8,10 +8,13 @@
     "node": ">=20"
   },
   "scripts": {
+    "predev": "node scripts/copy-liblouis-assets.mjs",
     "dev": "vite",
     "check-env": "node scripts/check-env-leakage.mjs",
-    "prebuild": "npm run check-env",
+    "copy-liblouis": "node scripts/copy-liblouis-assets.mjs",
+    "prebuild": "npm run check-env && npm run copy-liblouis",
     "build": "tsc -b && node scripts/vite-build.mjs",
+    "prepreview": "node scripts/copy-liblouis-assets.mjs",
     "preview": "vite preview",
     "server": "node server/index.mjs",
     "test": "vitest run",
@@ -19,6 +22,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.5",
+    "liblouis": "^0.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "6.30.3",

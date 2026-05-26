@@ -63,7 +63,7 @@ const PUNCTUATION_DOTS: Record<string, number> = {
 const CAPITAL_SIGN = 0b100000;
 const NUMBER_SIGN = 0b111100;
 
-function createCell(mask: number, source: string, role: BrailleCell["role"] = "content"): BrailleCell {
+export function createCell(mask: number, source: string, role: BrailleCell["role"] = "content"): BrailleCell {
   return {
     mask,
     source,
