@@ -73,6 +73,10 @@ export default function VoiceNavPage() {
           navigate("/tactile-output");
           speechEngine.interrupt("Opening Tactile Output Lab.");
           break;
+        case "navigate_tactile_drill":
+          navigate("/tactile-drill");
+          speechEngine.interrupt("Opening Tactile Drill.");
+          break;
         case "stop_speech":
           speechEngine.stop();
           break;

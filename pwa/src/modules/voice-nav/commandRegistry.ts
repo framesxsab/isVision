@@ -97,6 +97,13 @@ export const commands: Command[] = [
     action: "navigate_tactile_output",
   },
   {
+    name: "open_tactile_drill",
+    patterns: ["tactile drill", "drill", "practice braille", "braille drill", "open drill"],
+    description: "Open Tactile Drill",
+    module: "tactile-output",
+    action: "navigate_tactile_drill",
+  },
+  {
     name: "play",
     patterns: ["play", "start reading", "read aloud", "read this"],
     description: "Start or resume reading",

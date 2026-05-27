@@ -12,6 +12,7 @@ import {
   type Status,
 } from "@/core/utils/offlineReadiness";
 import type { LiblouisTableId } from "@/modules/tactile-output/liblouisAdapter";
+import { useTactileStore } from "@/modules/tactile-output/tactileStore";
 import {
   DISCLOSURES,
   SCOPE_CLASSES,
@@ -25,6 +26,10 @@ export default function SettingsPage() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [readinessBusy, setReadinessBusy] = useState(false);
+  const [precacheBusy, setPrecacheBusy] = useState(false);
+  const [precacheMessage, setPrecacheMessage] = useState("");
+  const [clearMessage, setClearMessage] = useState("");
+  const tactileStoreState = useTactileStore;
 
   useEffect(() => {
     speechEngine.init();
@@ -64,6 +69,67 @@ export default function SettingsPage() {
       setReadinessBusy(false);
     }
   }, []);
+
+  const precacheLanguages = useCallback(async () => {
+    setPrecacheBusy(true);
+    setPrecacheMessage("");
+    try {
+      // Dynamic import keeps the Liblouis adapter out of the initial chunk
+      // for users who never open Settings → Offline.
+      const { translateWithTable } = await import(
+        "@/modules/tactile-output/liblouisAdapter"
+      );
+      const tables: LiblouisTableId[] = ["en-g2", "fr-g2", "de-g2"];
+      // Translate a tiny string in each language so the worker fetches
+      // every entry table — the runtime CacheFirst handler stashes them
+      // for offline use without us writing into the cache directly.
+      const results = await Promise.allSettled(
+        tables.map((t) => translateWithTable("a", t))
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      setPrecacheMessage(`Primed ${ok} of ${tables.length} language tables.`);
+      await runReadinessCheck();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Precache failed.";
+      setPrecacheMessage(message);
+    } finally {
+      setPrecacheBusy(false);
+    }
+  }, [runReadinessCheck]);
+
+  const clearLocalData = useCallback(() => {
+    // Reset zustand-in-memory state first so persist doesn't immediately
+    // rewrite the keys we're about to clear.
+    tactileStoreState.persist.clearStorage();
+    tactileStoreState.setState({
+      lastImportedText: "",
+      lastImportSource: "",
+      translatorMode: "g1",
+      language: "en-g2",
+      groupSize: 1,
+      outputFormat: "compact",
+      holdMs: 900,
+      blankBetweenFrames: true,
+      drillScore: { attempts: 0, correct: 0, streak: 0 },
+      drillMode: "letter",
+      drillSpeechMode: "silent",
+      drillDifficulty: "normal",
+      drillHistory: [],
+    });
+    // Reset the general settings store too. Onboarding flag stays out of
+    // the wipe — clearing it would dump the user back into the welcome
+    // flow, which they almost certainly don't want from a "clear my data"
+    // button.
+    settings.setSpeechRate(1.0);
+    settings.setSpeechPitch(1.0);
+    settings.setSpeechVolume(1.0);
+    settings.setVoiceURI(null);
+    settings.setHighContrast(false);
+    settings.setFontSize(20);
+    settings.setHapticEnabled(true);
+    settings.setSpatialAudioEnabled(true);
+    setClearMessage("Cleared imported text, drill history, language, and per-page settings.");
+  }, [settings, tactileStoreState]);
 
   // Run one check on mount so the panel isn't blank when the user first
   // opens Settings. Subsequent checks happen on demand via the button.
@@ -228,14 +294,23 @@ export default function SettingsPage() {
         report={readiness}
         busy={readinessBusy}
         onRecheck={runReadinessCheck}
+        onPrecache={precacheLanguages}
+        precacheBusy={precacheBusy}
+        precacheMessage={precacheMessage}
       />
 
-      <PrivacySection />
+      <PrivacySection onClearLocalData={clearLocalData} clearMessage={clearMessage} />
     </div>
   );
 }
 
-function PrivacySection() {
+function PrivacySection({
+  onClearLocalData,
+  clearMessage,
+}: {
+  onClearLocalData: () => void;
+  clearMessage: string;
+}) {
   return (
     <section aria-labelledby="privacy-heading" className="mb-8">
       <h2 id="privacy-heading" className="text-lg font-semibold text-white mb-2">
@@ -250,6 +325,26 @@ function PrivacySection() {
           <DisclosureRow key={d.id} disclosure={d} />
         ))}
       </ul>
+      <div className="mt-4">
+        <Button
+          variant="secondary"
+          onClick={onClearLocalData}
+          aria-label="Reset every saved setting and clear all locally stored app data"
+          data-testid="clear-local-data"
+        >
+          Clear saved data
+        </Button>
+        <p className="text-xs text-gray-400 mt-2">
+          Resets translator/language/output choices, imported text, drill
+          history, voice and display preferences. Onboarding stays marked
+          complete so you don't get sent back to the welcome flow.
+        </p>
+        {clearMessage && (
+          <p className="text-xs text-green-300 mt-2" role="status" aria-live="polite">
+            {clearMessage}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -296,10 +391,16 @@ function OfflineReadinessSection({
   report,
   busy,
   onRecheck,
+  onPrecache,
+  precacheBusy,
+  precacheMessage,
 }: {
   report: ReadinessReport | null;
   busy: boolean;
   onRecheck: () => void;
+  onPrecache?: () => void;
+  precacheBusy: boolean;
+  precacheMessage: string;
 }) {
   return (
     <section aria-labelledby="offline-heading" className="mb-8">
@@ -341,14 +442,29 @@ function OfflineReadinessSection({
           ))}
       </ul>
 
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
         <Button onClick={onRecheck} disabled={busy} variant="secondary">
           {busy ? "Checking…" : "Check offline readiness"}
         </Button>
+        {onPrecache && (
+          <Button
+            onClick={onPrecache}
+            disabled={precacheBusy}
+            variant="secondary"
+            aria-label="Pre-fetch language tables so they're available offline"
+          >
+            {precacheBusy ? "Caching…" : "Cache language tables"}
+          </Button>
+        )}
         <span className="text-xs text-gray-400" aria-live="polite">
           {report ? `Last checked ${formatRelativeTime(report.checkedAt)}` : ""}
         </span>
       </div>
+      {precacheMessage && (
+        <p className="text-xs text-gray-300 mt-2" role="status" aria-live="polite">
+          {precacheMessage}
+        </p>
+      )}
     </section>
   );
 }
