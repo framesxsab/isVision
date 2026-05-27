@@ -46,6 +46,8 @@ beforeEach(() => {
     drillScore: INITIAL_SCORE,
     drillMode: "letter",
     drillSpeechMode: "silent",
+    drillDifficulty: "normal",
+    drillHistory: [],
   });
 });
 
@@ -99,10 +101,43 @@ describe("tactileStore", () => {
     expect(useTactileStore.getState().groupSize).toBe(8);
   });
 
-  it("resetDrillScore restores the initial score", () => {
+  it("resetDrillScore restores the initial score and clears history", () => {
     useTactileStore.getState().setDrillScore({ attempts: 10, correct: 7, streak: 3 });
+    useTactileStore.getState().pushDrillAttempt({
+      answer: "cat",
+      kind: "short word",
+      guess: "cat",
+      correct: true,
+      at: 1,
+    });
     useTactileStore.getState().resetDrillScore();
     expect(useTactileStore.getState().drillScore).toEqual(INITIAL_SCORE);
+    expect(useTactileStore.getState().drillHistory).toEqual([]);
+  });
+
+  it("rejects invalid difficulties and falls back to normal", () => {
+    useTactileStore.getState().setDrillDifficulty("brutal" as never);
+    expect(useTactileStore.getState().drillDifficulty).toBe("normal");
+    useTactileStore.getState().setDrillDifficulty("hard");
+    expect(useTactileStore.getState().drillDifficulty).toBe("hard");
+  });
+
+  it("pushDrillAttempt prepends and caps history", () => {
+    const store = useTactileStore.getState();
+    for (let i = 0; i < 5; i++) {
+      store.pushDrillAttempt({
+        answer: `a${i}`,
+        kind: "single letter",
+        guess: `a${i}`,
+        correct: i % 2 === 0,
+        at: i,
+      });
+    }
+    const history = useTactileStore.getState().drillHistory;
+    expect(history).toHaveLength(5);
+    // Newest first.
+    expect(history[0]?.answer).toBe("a4");
+    expect(history[4]?.answer).toBe("a0");
   });
 
   // Note: we deliberately don't test "writes land in localStorage" here.

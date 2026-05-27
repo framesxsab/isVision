@@ -20,8 +20,11 @@ import { detectSpeechSynthesis } from "@/core/utils/capabilities";
 import { translateGrade1Debug } from "./brailleFrames";
 import {
   accuracyPercent,
+  historyToCsv,
   nextPrompt,
   scoreAttempt,
+  spokenAnswer,
+  type Difficulty,
   type DrillMode,
   type DrillPrompt,
 } from "./drillState";
@@ -31,6 +34,7 @@ const MODE_OPTIONS: Array<{ id: DrillMode; label: string }> = [
   { id: "letter", label: "Letters" },
   { id: "word", label: "Words" },
   { id: "number", label: "Numbers" },
+  { id: "punctuation", label: "Punctuation" },
   { id: "mixed", label: "Mixed" },
 ];
 
@@ -38,6 +42,12 @@ const SPEECH_OPTIONS: Array<{ id: DrillSpeechMode; label: string; hint: string }
   { id: "silent", label: "Tactile only", hint: "No speech. Read the dots only." },
   { id: "speech", label: "Speech only", hint: "Speak the answer; no dots." },
   { id: "speech+tactile", label: "Speech + tactile", hint: "Speak after a delay." },
+];
+
+const DIFFICULTY_OPTIONS: Array<{ id: Difficulty; label: string; hint: string }> = [
+  { id: "easy", label: "Easy", hint: "First ten letters, three-letter words, single digits." },
+  { id: "normal", label: "Normal", hint: "Most letters, mixed word lengths, 1–99." },
+  { id: "hard", label: "Hard", hint: "Full alphabet, longer words, 1–999, more punctuation." },
 ];
 
 export default function TactileDrillPage() {
@@ -51,10 +61,14 @@ export default function TactileDrillPage() {
   const setSpeechMode = useTactileStore((s) => s.setDrillSpeechMode);
   const score = useTactileStore((s) => s.drillScore);
   const setScoreStored = useTactileStore((s) => s.setDrillScore);
+  const difficulty = useTactileStore((s) => s.drillDifficulty);
+  const setDifficulty = useTactileStore((s) => s.setDrillDifficulty);
+  const attemptHistory = useTactileStore((s) => s.drillHistory);
+  const pushDrillAttempt = useTactileStore((s) => s.pushDrillAttempt);
   const resetDrillScore = useTactileStore((s) => s.resetDrillScore);
 
   // Transient — derived per session.
-  const [history, setHistory] = useState<DrillPrompt[]>(() => [nextPrompt(mode)]);
+  const [history, setHistory] = useState<DrillPrompt[]>(() => [nextPrompt(mode, undefined, difficulty)]);
   const [cursor, setCursor] = useState(0);
   const [guess, setGuess] = useState("");
   const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">("idle");
@@ -68,14 +82,15 @@ export default function TactileDrillPage() {
   const speechCap = useMemo(() => detectSpeechSynthesis(), []);
   const speechNeeded = speechMode !== "silent";
 
-  // Mode change → fresh prompt list so old letter cards don't mix into a word
-  // drill. We keep the score so the learner can compare modes if they like.
+  // Mode or difficulty change → fresh prompt list so old letter cards don't
+  // mix into a word drill, and the new pool kicks in immediately. We keep
+  // the score so the learner can compare runs if they like.
   useEffect(() => {
-    setHistory([nextPrompt(mode)]);
+    setHistory([nextPrompt(mode, undefined, difficulty)]);
     setCursor(0);
     setGuess("");
     setFeedback("idle");
-  }, [mode]);
+  }, [mode, difficulty]);
 
   // Speak the prompt depending on speech mode. We delay slightly for the
   // "speech+tactile" combo so the dots can be felt first.
@@ -83,7 +98,7 @@ export default function TactileDrillPage() {
     if (speechMode === "silent") return;
     const delay = speechMode === "speech+tactile" ? 1200 : 0;
     const id = window.setTimeout(() => {
-      speechEngine.interrupt(`${current.kind}. ${current.answer}`);
+      speechEngine.interrupt(`${current.kind}. ${spokenAnswer(current)}`);
     }, delay);
     return () => window.clearTimeout(id);
   }, [current, speechMode]);
@@ -92,27 +107,37 @@ export default function TactileDrillPage() {
     if (guess.trim().length === 0) return;
     const { next, correct } = scoreAttempt(score, current.answer, guess);
     setScoreStored(next);
+    pushDrillAttempt({
+      answer: current.answer,
+      kind: current.kind,
+      guess: guess.trim(),
+      correct,
+      at: Date.now(),
+    });
     setFeedback(correct ? "correct" : "wrong");
     const accuracy = accuracyPercent(next);
+    // Use spokenAnswer for the announcement so punctuation marks read as
+    // "semicolon" / "question mark" rather than the raw glyph.
+    const spoken = spokenAnswer(current);
     const message = correct
       ? `Correct. ${next.streak} in a row. ${accuracy} percent accuracy.`
-      : `Not quite. The answer was ${current.answer}.`;
+      : `Not quite. The answer was ${spoken}.`;
     announce(message);
     speechEngine.interrupt(message);
-  }, [announce, current.answer, guess, score, setScoreStored]);
+  }, [announce, current, guess, score, setScoreStored, pushDrillAttempt]);
 
   const advance = useCallback(() => {
     setHistory((prev) => {
       // If the learner is mid-history (after pressing Back), drop the future
       // so a new sequence starts from here. Matches how a tape recorder works.
       const trimmed = prev.slice(0, cursor + 1);
-      return [...trimmed, nextPrompt(mode)];
+      return [...trimmed, nextPrompt(mode, undefined, difficulty)];
     });
     setCursor((c) => c + 1);
     setGuess("");
     setFeedback("idle");
     inputRef.current?.focus();
-  }, [cursor, mode]);
+  }, [cursor, mode, difficulty]);
 
   const goBack = useCallback(() => {
     if (cursor === 0) return;
@@ -133,12 +158,31 @@ export default function TactileDrillPage() {
 
   const reset = useCallback(() => {
     resetDrillScore();
-    setHistory([nextPrompt(mode)]);
+    setHistory([nextPrompt(mode, undefined, difficulty)]);
     setCursor(0);
     setGuess("");
     setFeedback("idle");
     announce("Drill reset. Score cleared.");
-  }, [announce, mode, resetDrillScore]);
+  }, [announce, mode, difficulty, resetDrillScore]);
+
+  const exportCsv = useCallback(() => {
+    const csv = historyToCsv(attemptHistory);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `tactile-drill-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    announce(`Exported ${attemptHistory.length} drill attempts.`);
+  }, [announce, attemptHistory]);
+
+  // Mistakes only — the user already knows what they got right. Showing the
+  // last few wrong answers turns the panel into a quick review surface.
+  const recentMistakes = useMemo(
+    () => attemptHistory.filter((a) => !a.correct).slice(0, 5),
+    [attemptHistory]
+  );
 
   useEffect(() => {
     announce(
@@ -168,7 +212,7 @@ export default function TactileDrillPage() {
           <h2 id="drill-mode-heading" className="text-lg font-semibold text-white mb-3">
             Drill
           </h2>
-          <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Drill mode">
+          <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Drill mode">
             {MODE_OPTIONS.map((option) => (
               <button
                 key={option.id}
@@ -176,7 +220,7 @@ export default function TactileDrillPage() {
                 role="radio"
                 aria-checked={mode === option.id}
                 onClick={() => setMode(option.id)}
-                className={`min-h-touch rounded-lg border px-2 py-2 font-semibold text-sm ${
+                className={`min-h-touch rounded-lg border px-1 py-2 font-semibold text-xs ${
                   mode === option.id
                     ? "bg-primary-600 border-primary-300 text-white"
                     : "bg-gray-900 border-gray-700 text-gray-300"
@@ -186,6 +230,38 @@ export default function TactileDrillPage() {
               </button>
             ))}
           </div>
+        </section>
+
+        <section aria-labelledby="difficulty-heading">
+          <h2 id="difficulty-heading" className="text-lg font-semibold text-white mb-3">
+            Difficulty
+          </h2>
+          <div
+            className="grid grid-cols-3 gap-2"
+            role="radiogroup"
+            aria-label="Drill difficulty"
+            aria-describedby="difficulty-hint"
+          >
+            {DIFFICULTY_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={difficulty === option.id}
+                onClick={() => setDifficulty(option.id)}
+                className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
+                  difficulty === option.id
+                    ? "bg-primary-600 border-primary-300 text-white"
+                    : "bg-gray-900 border-gray-700 text-gray-300"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p id="difficulty-hint" className="text-sm text-gray-300 mt-2">
+            {DIFFICULTY_OPTIONS.find((d) => d.id === difficulty)!.hint}
+          </p>
         </section>
 
         <section aria-labelledby="speech-mode-heading">
@@ -323,6 +399,46 @@ export default function TactileDrillPage() {
           <ScoreTile label="Attempts" value={score.attempts} />
           <ScoreTile label="Correct" value={score.correct} />
           <ScoreTile label="Streak" value={score.streak} />
+        </section>
+
+        <section aria-labelledby="session-heading">
+          <div className="flex items-center justify-between mb-3">
+            <h2 id="session-heading" className="text-lg font-semibold text-white">
+              Session
+            </h2>
+            <Button
+              variant="secondary"
+              onClick={exportCsv}
+              disabled={attemptHistory.length === 0}
+              aria-label="Download drill history as CSV"
+              data-testid="drill-export-csv"
+            >
+              Export CSV
+            </Button>
+          </div>
+          <p className="text-sm text-gray-300 mb-3" data-testid="drill-history-count">
+            {attemptHistory.length === 0
+              ? "No attempts yet. Submit one to start building your history."
+              : `${attemptHistory.length} attempt${attemptHistory.length === 1 ? "" : "s"} in this session.`}
+          </p>
+          {recentMistakes.length > 0 && (
+            <>
+              <h3 className="text-sm font-semibold text-gray-200 mb-2">Recent mistakes</h3>
+              <ul className="space-y-1" aria-label="Recent mistakes">
+                {recentMistakes.map((attempt, i) => (
+                  <li
+                    key={`${attempt.at}-${i}`}
+                    className="text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2"
+                  >
+                    <span className="text-gray-400">{attempt.kind}:</span>{" "}
+                    <span className="text-white font-medium">{spokenAnswer(attempt)}</span>
+                    <span className="text-gray-400"> — you said </span>
+                    <span className="text-red-300">{attempt.guess || "(blank)"}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
       </div>
 

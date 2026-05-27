@@ -67,6 +67,51 @@ test.describe("Tactile Drill", () => {
     await expect(page.getByTestId("speech-only-hidden")).toHaveCount(0);
   });
 
+  test("Punctuation mode produces a one-cell prompt", async ({ page }) => {
+    await page.getByRole("radio", { name: "Punctuation" }).click();
+    // Single punctuation marks are one cell each in the debug translator.
+    await expect(page.getByTestId("cells-debug")).toHaveText(/^1 cells$/);
+  });
+
+  test("Difficulty selector switches the prompt pool", async ({ page }) => {
+    // The buttons are visible inside the difficulty radiogroup; clicking
+    // Hard rotates to a fresh prompt drawn from the wider pool.
+    await page.getByRole("radio", { name: "Hard" }).click();
+    await expect(page.getByRole("radio", { name: "Hard" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    // Hard difficulty survives a reload too — covered by persistence tests,
+    // but we re-assert here so a future regression in the wiring shows up
+    // in the drill suite directly.
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("radio", { name: "Hard" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  test("History panel grows with attempts and shows recent mistakes", async ({ page }) => {
+    await page.getByRole("radio", { name: "Letters" }).click();
+    // Start with no history.
+    await expect(page.getByTestId("drill-history-count")).toContainText(/No attempts yet/);
+    // One wrong guess.
+    const input = page.locator("#drill-input");
+    await input.fill("zzz");
+    await input.press("Enter");
+    await expect(page.getByTestId("drill-history-count")).toContainText(/1 attempt/);
+    await expect(page.getByRole("list", { name: "Recent mistakes" })).toBeVisible();
+  });
+
+  test("Export CSV is disabled before any attempt and enabled afterwards", async ({ page }) => {
+    const button = page.getByTestId("drill-export-csv");
+    await expect(button).toBeDisabled();
+    await page.locator("#drill-input").fill("zzz");
+    await page.locator("#drill-input").press("Enter");
+    await expect(button).toBeEnabled();
+  });
+
   test("Reset zeroes the score", async ({ page }) => {
     const input = page.locator("#drill-input");
     await input.fill("zzz");

@@ -19,8 +19,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { LiblouisTableId } from "./liblouisAdapter";
-import type { DrillMode, DrillScore } from "./drillState";
-import { INITIAL_SCORE } from "./drillState";
+import type { Difficulty, DrillAttempt, DrillMode, DrillScore } from "./drillState";
+import { INITIAL_SCORE, MAX_HISTORY, recordAttempt } from "./drillState";
 
 export type TranslatorMode = "g1" | "g2";
 export type OutputFormat = "json" | "compact";
@@ -41,6 +41,8 @@ interface TactileState {
   drillScore: DrillScore;
   drillMode: DrillMode;
   drillSpeechMode: DrillSpeechMode;
+  drillDifficulty: Difficulty;
+  drillHistory: DrillAttempt[];
 
   // Actions
   rememberImportedText: (text: string, source: string) => void;
@@ -53,6 +55,8 @@ interface TactileState {
   setDrillScore: (score: DrillScore) => void;
   setDrillMode: (mode: DrillMode) => void;
   setDrillSpeechMode: (mode: DrillSpeechMode) => void;
+  setDrillDifficulty: (difficulty: Difficulty) => void;
+  pushDrillAttempt: (attempt: DrillAttempt) => void;
   resetDrillScore: () => void;
 }
 
@@ -67,8 +71,15 @@ const VALID_GROUP_SIZES = new Set([1, 4, 8]);
 const VALID_TRANSLATOR_MODES = new Set<TranslatorMode>(["g1", "g2"]);
 const VALID_LANGUAGES = new Set<LiblouisTableId>(["en-g2", "en-g1", "fr-g2", "de-g2"]);
 const VALID_OUTPUT_FORMATS = new Set<OutputFormat>(["compact", "json"]);
-const VALID_DRILL_MODES = new Set<DrillMode>(["letter", "word", "number", "mixed"]);
+const VALID_DRILL_MODES = new Set<DrillMode>([
+  "letter",
+  "word",
+  "number",
+  "punctuation",
+  "mixed",
+]);
 const VALID_SPEECH_MODES = new Set<DrillSpeechMode>(["silent", "speech", "speech+tactile"]);
+const VALID_DIFFICULTIES = new Set<Difficulty>(["easy", "normal", "hard"]);
 
 function clampHoldMs(value: number): number {
   if (!Number.isFinite(value)) return 900;
@@ -92,6 +103,8 @@ export const useTactileStore = create<TactileState>()(
       drillScore: INITIAL_SCORE,
       drillMode: "letter",
       drillSpeechMode: "silent",
+      drillDifficulty: "normal",
+      drillHistory: [],
 
       rememberImportedText: (text, source) =>
         set({ lastImportedText: text, lastImportSource: source }),
@@ -108,14 +121,29 @@ export const useTactileStore = create<TactileState>()(
         set({ drillMode: VALID_DRILL_MODES.has(mode) ? mode : "letter" }),
       setDrillSpeechMode: (mode) =>
         set({ drillSpeechMode: VALID_SPEECH_MODES.has(mode) ? mode : "silent" }),
-      resetDrillScore: () => set({ drillScore: INITIAL_SCORE }),
+      setDrillDifficulty: (difficulty) =>
+        set({
+          drillDifficulty: VALID_DIFFICULTIES.has(difficulty) ? difficulty : "normal",
+        }),
+      pushDrillAttempt: (attempt) =>
+        set((s) => ({ drillHistory: recordAttempt(s.drillHistory, attempt) })),
+      // Reset both score and the recent-attempt history together — a learner
+      // pressing Reset wants a clean slate, not a clean score with stale
+      // mistakes still listed below it.
+      resetDrillScore: () => set({ drillScore: INITIAL_SCORE, drillHistory: [] }),
     }),
     {
       name: TACTILE_STORE_KEY,
       // version lets us migrate later if the shape changes — bumping it
       // invalidates older stored state and falls back to the defaults
       // above, which is safer than leaving a half-populated state.
-      version: 1,
+      version: 2,
+      // Defensive merge: when version bumps the previous payload is dropped,
+      // but newer keys we add (drillDifficulty, drillHistory) need to
+      // survive future loads too. zustand's default deep-merge handles
+      // that as long as we keep additive shape changes.
     }
   )
 );
+// Re-export for callers that want the same upper bound used inside the store.
+export { MAX_HISTORY };

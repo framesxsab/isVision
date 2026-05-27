@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   INITIAL_SCORE,
+  MAX_HISTORY,
   accuracyPercent,
+  historyToCsv,
   nextPrompt,
+  recordAttempt,
   scoreAttempt,
+  spokenAnswer,
+  type DrillAttempt,
 } from "./drillState";
 
 // A seeded RNG so the prompt picker is deterministic in tests. Math.random
@@ -23,6 +28,15 @@ describe("nextPrompt", () => {
     expect(prompt.kind).toBe("single letter");
   });
 
+  it("uses the easy letter pool when difficulty is easy", () => {
+    // Easy = a..j only. Sample many seeds; none should produce a letter
+    // outside that pool.
+    for (let seed = 0; seed < 50; seed++) {
+      const prompt = nextPrompt("letter", seededRng(seed), "easy");
+      expect("abcdefghij").toContain(prompt.answer);
+    }
+  });
+
   it("returns a short word for word mode", () => {
     const prompt = nextPrompt("word", seededRng(7));
     expect(prompt.answer.length).toBeGreaterThanOrEqual(3);
@@ -30,7 +44,13 @@ describe("nextPrompt", () => {
     expect(prompt.kind).toBe("short word");
   });
 
-  it("returns a number 1-99 for number mode", () => {
+  it("labels hard-difficulty words as 'long word'", () => {
+    const prompt = nextPrompt("word", seededRng(2), "hard");
+    expect(prompt.kind).toBe("long word");
+    expect(prompt.answer.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("returns a number 1-99 for number mode at default difficulty", () => {
     for (let seed = 0; seed < 30; seed++) {
       const prompt = nextPrompt("number", seededRng(seed));
       const n = Number(prompt.answer);
@@ -40,14 +60,40 @@ describe("nextPrompt", () => {
     }
   });
 
-  it("mixes prompt kinds across calls in mixed mode", () => {
+  it("narrows numbers to 1-9 on easy and widens to 1-999 on hard", () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const easy = Number(nextPrompt("number", seededRng(seed), "easy").answer);
+      expect(easy).toBeGreaterThanOrEqual(1);
+      expect(easy).toBeLessThanOrEqual(9);
+      const hard = Number(nextPrompt("number", seededRng(seed), "hard").answer);
+      expect(hard).toBeGreaterThanOrEqual(1);
+      expect(hard).toBeLessThanOrEqual(999);
+    }
+  });
+
+  it("returns a punctuation character for punctuation mode", () => {
+    const prompt = nextPrompt("punctuation", seededRng(3));
+    expect(prompt.kind).toBe("punctuation mark");
+    expect(prompt.answer.length).toBe(1);
+    expect([".", ",", ";", ":", "!", "?"]).toContain(prompt.answer);
+  });
+
+  it("punctuation easy mode is limited to the three most common marks", () => {
+    const allowed = [".", ",", "!"];
+    for (let seed = 0; seed < 30; seed++) {
+      const prompt = nextPrompt("punctuation", seededRng(seed), "easy");
+      expect(allowed).toContain(prompt.answer);
+    }
+  });
+
+  it("mixes prompt kinds across calls in mixed mode, including punctuation", () => {
     const rng = seededRng(42);
     const kinds = new Set<string>();
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       kinds.add(nextPrompt("mixed", rng).kind);
     }
-    // Over 20 draws, we should have hit at least 2 of the 3 categories.
-    expect(kinds.size).toBeGreaterThanOrEqual(2);
+    // Over 40 draws we should hit at least 3 of the 4 categories.
+    expect(kinds.size).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -78,5 +124,69 @@ describe("accuracyPercent", () => {
   it("rounds to the nearest whole percent", () => {
     expect(accuracyPercent({ attempts: 3, correct: 2, streak: 2 })).toBe(67);
     expect(accuracyPercent({ attempts: 4, correct: 1, streak: 0 })).toBe(25);
+  });
+});
+
+describe("recordAttempt + history cap", () => {
+  function fakeAttempt(answer: string): DrillAttempt {
+    return { answer, kind: "single letter", guess: answer, correct: true, at: 0 };
+  }
+
+  it("prepends newest attempts so the most recent shows first", () => {
+    const after = recordAttempt(
+      [fakeAttempt("a")],
+      fakeAttempt("b")
+    );
+    expect(after.map((a) => a.answer)).toEqual(["b", "a"]);
+  });
+
+  it("caps the retained history at MAX_HISTORY", () => {
+    let history: DrillAttempt[] = [];
+    for (let i = 0; i < MAX_HISTORY + 20; i++) {
+      history = recordAttempt(history, fakeAttempt(`a${i}`));
+    }
+    expect(history).toHaveLength(MAX_HISTORY);
+    // The oldest entries (a0..a19) must have been dropped.
+    expect(history[history.length - 1]?.answer).toBe("a20");
+  });
+});
+
+describe("historyToCsv", () => {
+  it("emits a header row followed by one row per attempt", () => {
+    const csv = historyToCsv([
+      { answer: "cat", kind: "short word", guess: "cat", correct: true, at: 0 },
+      { answer: "5", kind: "number", guess: "6", correct: false, at: 1000 },
+    ]);
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe("at_iso,kind,answer,guess,correct");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toMatch(/^1970-01-01T00:00:00.000Z,short word,cat,cat,1$/);
+    expect(lines[2]).toMatch(/^1970-01-01T00:00:01.000Z,number,5,6,0$/);
+  });
+
+  it("RFC 4180-quotes fields that contain commas or quotes", () => {
+    const csv = historyToCsv([
+      { answer: 'a,b', kind: "kind", guess: 'he said "hi"', correct: false, at: 0 },
+    ]);
+    const line = csv.split("\n")[1]!;
+    // The comma-containing field is wrapped in quotes; the quote-containing
+    // field doubles its internal quotes.
+    expect(line).toContain('"a,b"');
+    expect(line).toContain('"he said ""hi"""');
+  });
+
+  it("produces only a header for an empty history", () => {
+    expect(historyToCsv([])).toBe("at_iso,kind,answer,guess,correct");
+  });
+});
+
+describe("spokenAnswer", () => {
+  it("returns the named punctuation mark for a punctuation prompt", () => {
+    expect(spokenAnswer({ answer: ";", kind: "punctuation mark" })).toBe("semicolon");
+    expect(spokenAnswer({ answer: "?", kind: "punctuation mark" })).toBe("question mark");
+  });
+
+  it("returns the answer unchanged for non-punctuation prompts", () => {
+    expect(spokenAnswer({ answer: "cat", kind: "short word" })).toBe("cat");
   });
 });
