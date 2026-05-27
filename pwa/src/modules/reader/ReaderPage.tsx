@@ -229,7 +229,7 @@ export default function ReaderPage() {
 
       {/* Reading controls - fixed at bottom */}
       {chunks.length > 0 && (
-        <div className="sticky bottom-16 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
+        <div className="sticky bottom-above-nav bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
           <div className="flex items-center justify-between max-w-lg mx-auto">
             {/* Previous */}
             <Button

@@ -207,7 +207,7 @@ export default function TactileDrillPage() {
         </div>
       </header>
 
-      <div className="flex-1 px-4 py-5 pb-28 max-w-lg mx-auto w-full space-y-6">
+      <div className="flex-1 px-4 py-5 pb-nav-action max-w-lg mx-auto w-full space-y-6">
         <section aria-labelledby="drill-mode-heading">
           <h2 id="drill-mode-heading" className="text-lg font-semibold text-white mb-3">
             Drill
@@ -442,7 +442,7 @@ export default function TactileDrillPage() {
         </section>
       </div>
 
-      <div className="fixed bottom-16 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
+      <div className="fixed bottom-above-nav left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
         <div className="max-w-lg mx-auto grid grid-cols-4 gap-2">
           <Button variant="ghost" onClick={goBack} aria-label="Previous prompt">
             <IconSkipBack className="w-5 h-5" />

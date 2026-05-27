@@ -6,6 +6,12 @@
   .pb-nav {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
+  .pb-nav-action {
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-above-nav {
+    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @layer base {

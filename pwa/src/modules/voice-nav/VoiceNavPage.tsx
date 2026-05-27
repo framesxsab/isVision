@@ -202,7 +202,7 @@ export default function VoiceNavPage() {
       </div>
 
       {/* Command reference */}
-      <div className="flex-1 px-4 pb-24">
+      <div className="flex-1 px-4 pb-nav">
         <div className="max-w-lg mx-auto space-y-6">
           <h2 className="text-xl font-bold text-white">Available Commands</h2>
 

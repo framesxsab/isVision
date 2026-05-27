@@ -10,6 +10,8 @@ const routeTitles: Record<string, string> = {
   "/ai-vision": "AI Vision",
   "/reader": "Accessible Reader",
   "/voice-nav": "Voice Navigation",
+  "/tactile-output": "Tactile Lab",
+  "/tactile-drill": "Tactile Drill",
 };
 
 /**
@@ -32,5 +34,31 @@ export function useRouteAnnounce() {
     }
 
     announce(`Navigated to ${title}`, "assertive");
+
+    // Move focus to the new page's h1 so screen-reader and keyboard users land
+    // at the page title instead of staying on the link they activated (which
+    // may no longer exist after the route change). Routes are lazy-loaded
+    // behind Suspense, so the h1 may not be in the DOM on the first frame —
+    // poll for up to ~500ms before giving up.
+    let cancelled = false;
+    let attempts = 0;
+    const tryFocus = () => {
+      if (cancelled) return;
+      const heading = document.querySelector<HTMLElement>("#main-content h1");
+      if (heading) {
+        if (!heading.hasAttribute("tabindex")) {
+          heading.setAttribute("tabindex", "-1");
+        }
+        heading.focus({ preventScroll: false });
+        return;
+      }
+      if (attempts++ < 30) {
+        requestAnimationFrame(tryFocus);
+      }
+    };
+    requestAnimationFrame(tryFocus);
+    return () => {
+      cancelled = true;
+    };
   }, [location.pathname, announce]);
 }

@@ -361,7 +361,7 @@ export default function TactileOutputPage() {
         </div>
       </header>
 
-      <div className="flex-1 px-4 py-5 pb-28 max-w-lg mx-auto w-full space-y-6">
+      <div className="flex-1 px-4 py-5 pb-nav-action max-w-lg mx-auto w-full space-y-6">
         <section aria-labelledby="input-heading">
           <div className="flex items-center justify-between mb-2">
             <h2 id="input-heading" className="text-lg font-semibold text-white">
@@ -677,7 +677,7 @@ export default function TactileOutputPage() {
         </section>
       </div>
 
-      <div className="fixed bottom-16 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
+      <div className="fixed bottom-above-nav left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
         <div className="max-w-lg mx-auto grid grid-cols-3 gap-2">
           <Button variant="secondary" onClick={copyFrames} aria-keyshortcuts="C">
             Copy (C)
