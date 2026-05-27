@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
-import { IconArrowLeft, IconBraille, IconRefresh, IconUpload } from "@/components/Icons";
+import {
+  IconArrowLeft,
+  IconBraille,
+  IconClipboard,
+  IconRefresh,
+  IconUpload,
+} from "@/components/Icons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import {
@@ -12,6 +18,13 @@ import {
   type BrailleCell,
   type TactileFrame,
 } from "./brailleFrames";
+import {
+  ALLOWED_FILE_EXTENSIONS,
+  MAX_INPUT_CHARS,
+  readTextFile,
+  takeTactileHandoff,
+} from "./inputAdapters";
+import { useTactileStore } from "./tactileStore";
 
 type SerialPortLike = {
   open: (options: { baudRate: number }) => Promise<void>;
@@ -26,29 +39,73 @@ type NavigatorWithSerial = Navigator & {
 };
 
 const DEFAULT_TEXT = "isVisible tactile output lab";
-const GROUP_SIZES = [1, 4, 8];
-type OutputFormat = "json" | "compact";
-type TranslatorMode = "g1" | "g2";
+const GROUP_SIZES = [1, 4, 8] as const;
+
+// Languages we expose for Grade 2 (Liblouis). The id is a subset of
+// LiblouisTableId; the label is the accessible name shown in the UI.
+const LANGUAGE_OPTIONS = [
+  { id: "en-g2", label: "English UEB" },
+  { id: "fr-g2", label: "Français" },
+  { id: "de-g2", label: "Deutsch" },
+] as const;
 
 export default function TactileOutputPage() {
   const navigate = useNavigate();
   const announce = useAnnounce();
-  const [text, setText] = useState(DEFAULT_TEXT);
-  const [groupSize, setGroupSize] = useState(1);
-  const [outputFormat, setOutputFormat] = useState<OutputFormat>("compact");
-  const [holdMs, setHoldMs] = useState(900);
-  const [blankBetweenFrames, setBlankBetweenFrames] = useState(true);
+
+  // Persisted settings (zustand persist; survives reload + reinstall).
+  const translatorMode = useTactileStore((s) => s.translatorMode);
+  const setTranslatorMode = useTactileStore((s) => s.setTranslatorMode);
+  const language = useTactileStore((s) => s.language);
+  const setLanguage = useTactileStore((s) => s.setLanguage);
+  const groupSize = useTactileStore((s) => s.groupSize);
+  const setGroupSize = useTactileStore((s) => s.setGroupSize);
+  const outputFormat = useTactileStore((s) => s.outputFormat);
+  const setOutputFormat = useTactileStore((s) => s.setOutputFormat);
+  const holdMs = useTactileStore((s) => s.holdMs);
+  const setHoldMs = useTactileStore((s) => s.setHoldMs);
+  const blankBetweenFrames = useTactileStore((s) => s.blankBetweenFrames);
+  const setBlankBetweenFrames = useTactileStore((s) => s.setBlankBetweenFrames);
+  const lastImportedText = useTactileStore((s) => s.lastImportedText);
+  const lastImportSource = useTactileStore((s) => s.lastImportSource);
+  const rememberImportedText = useTactileStore((s) => s.rememberImportedText);
+
+  // Transient state — not worth persisting, derived on every render or only
+  // meaningful within the current session.
+  const [text, setText] = useState<string>(() => lastImportedText || DEFAULT_TEXT);
   const [status, setStatus] = useState("Ready");
-  const [translatorMode, setTranslatorMode] = useState<TranslatorMode>("g1");
-  const [cells, setCells] = useState<BrailleCell[]>(() => translateGrade1Debug(DEFAULT_TEXT));
+  const [cells, setCells] = useState<BrailleCell[]>(() =>
+    translateGrade1Debug(lastImportedText || DEFAULT_TEXT)
+  );
   const [translatorBusy, setTranslatorBusy] = useState(false);
   const [translatorError, setTranslatorError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Consume any text another module handed off (e.g. Reader). One-shot so
+    // a stale handoff doesn't keep stomping the textarea on later mounts.
+    const handoff = takeTactileHandoff();
+    if (handoff && handoff.text.trim().length > 0) {
+      setText(handoff.text);
+      rememberImportedText(handoff.text, handoff.source);
+      const label = handoff.source ? `text from ${handoff.source}` : "imported text";
+      announce(`Loaded ${label}. ${handoff.text.length} characters.`);
+      return;
+    }
+    if (lastImportedText && lastImportedText.length > 0) {
+      // No fresh handoff — but the user has imported text from a previous
+      // session, which is what's currently in the textarea. Tell them where
+      // it came from so they're not surprised by stale content.
+      const label = lastImportSource ? `from ${lastImportSource}` : "imported earlier";
+      announce(`Tactile Lab. Restored last imported text ${label}.`);
+      return;
+    }
     announce(
       "Tactile Lab. Edit the source text, pick a translator, and stream frames to a connected device."
     );
-  }, [announce]);
+    // Only run on mount; the deps are stable selectors / setters that
+    // don't change identity, so adding them would just create noise.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -102,7 +159,7 @@ export default function TactileOutputPage() {
 
     // Dynamic import keeps the ~1.6 MB Liblouis WASM off the initial bundle.
     import("./liblouisAdapter")
-      .then(({ translateGrade2 }) => translateGrade2(text))
+      .then(({ translateWithTable }) => translateWithTable(text, language))
       .then((result) => {
         if (cancelled) return;
         setCells(result);
@@ -119,7 +176,7 @@ export default function TactileOutputPage() {
     return () => {
       cancelled = true;
     };
-  }, [text, translatorMode]);
+  }, [text, translatorMode, language]);
 
   const frames = useMemo(() => buildTactileFrames(cells, groupSize), [cells, groupSize]);
   const frameText = useMemo(() => serializeFrames(frames), [frames]);
@@ -169,6 +226,20 @@ export default function TactileOutputPage() {
   const speakPreviewRef = useRef<() => void>(() => {});
   const sendSerialRef = useRef<() => void>(() => {});
 
+  const sendHid = async () => {
+    // Dynamic import: the adapter file is ~3 KB but only the HID-curious
+    // users ever need it, so deferring keeps it out of the initial chunk.
+    const { sendBraille, isWebHidSupported } = await import("./webHidAdapter");
+    if (!isWebHidSupported()) {
+      updateStatus("WebHID is not supported in this browser.");
+      speechEngine.interrupt("WebHID not supported.");
+      return;
+    }
+    const result = await sendBraille(cells);
+    updateStatus(result.message);
+    speechEngine.interrupt(result.message);
+  };
+
   const sendSerial = async () => {
     const serial = (navigator as NavigatorWithSerial).serial;
     if (!serial) {
@@ -205,6 +276,50 @@ export default function TactileOutputPage() {
     }
   };
 
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const pasteFromClipboard = async () => {
+    if (!navigator.clipboard?.readText) {
+      updateStatus("Clipboard read is not supported in this browser.");
+      speechEngine.interrupt("Clipboard not supported.");
+      return;
+    }
+    try {
+      const pasted = await navigator.clipboard.readText();
+      // Cap matches the file and handoff paths so all three sources clip at
+      // the same length — drift between them would surprise users who hit
+      // the limit on one path but not another.
+      const trimmed = pasted.slice(0, MAX_INPUT_CHARS);
+      if (trimmed.length === 0) {
+        updateStatus("Clipboard is empty.");
+        return;
+      }
+      setText(trimmed);
+      rememberImportedText(trimmed, "clipboard");
+      updateStatus(`Pasted ${trimmed.length} characters from clipboard.`);
+    } catch {
+      // Permission denied or focus issues — both are non-fatal.
+      updateStatus("Could not read clipboard. Check browser permissions.");
+      speechEngine.interrupt("Clipboard read failed.");
+    }
+  };
+
+  const onFileChosen = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset the input so picking the same file twice re-fires onChange.
+    event.target.value = "";
+    if (!file) return;
+    const result = await readTextFile(file);
+    if (!result.ok) {
+      updateStatus(result.message);
+      speechEngine.interrupt(result.message);
+      return;
+    }
+    setText(result.text);
+    rememberImportedText(result.text, result.filename);
+    updateStatus(`Loaded ${result.filename} (${result.text.length} characters).`);
+  };
+
   copyFramesRef.current = copyFrames;
   saveFramesRef.current = saveFrames;
   speakPreviewRef.current = speakPreview;
@@ -232,9 +347,29 @@ export default function TactileOutputPage() {
             <h2 id="input-heading" className="text-lg font-semibold text-white">
               Source Text
             </h2>
-            <Button variant="ghost" onClick={() => setText(DEFAULT_TEXT)} aria-label="Reset text">
-              <IconRefresh className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-1" role="group" aria-label="Source actions">
+              <Button
+                variant="ghost"
+                onClick={pasteFromClipboard}
+                aria-label="Paste text from clipboard"
+              >
+                <IconClipboard className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Upload a text or markdown file"
+              >
+                <IconUpload className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setText(DEFAULT_TEXT)}
+                aria-label="Reset text to the example phrase"
+              >
+                <IconRefresh className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
           <label htmlFor="tactile-source" className="sr-only">
             Text to convert into braille tactile frames
@@ -245,6 +380,18 @@ export default function TactileOutputPage() {
             onChange={(event) => setText(event.target.value)}
             className="w-full min-h-36 bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 leading-relaxed"
             spellCheck={false}
+          />
+          {/* Visually hidden file picker; the Upload button triggers click().
+              accept narrows the system picker, but the adapter still validates
+              extension + MIME because mobile browsers ignore accept hints. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ALLOWED_FILE_EXTENSIONS.join(",") + ",text/*"}
+            className="sr-only"
+            onChange={onFileChosen}
+            aria-hidden="true"
+            tabIndex={-1}
           />
         </section>
 
@@ -280,9 +427,38 @@ export default function TactileOutputPage() {
             </button>
           </div>
           <p id="translator-help" className="text-sm text-gray-300 mt-2">
-            Grade 1 uses the bundled debug mapping. Grade 2 loads Liblouis (UEB, contracted)
-            on demand — first use downloads about 1.6 MB.
+            Grade 1 uses the bundled debug mapping. Grade 2 loads Liblouis on demand —
+            first use downloads about 1.6 MB.
           </p>
+
+          {translatorMode === "g2" && (
+            <fieldset className="mt-3">
+              <legend className="text-sm font-semibold text-gray-200 mb-2">Language</legend>
+              <div
+                className="grid grid-cols-3 gap-2"
+                role="radiogroup"
+                aria-label="Liblouis braille language"
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={language === option.id}
+                    onClick={() => setLanguage(option.id)}
+                    className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
+                      language === option.id
+                        ? "bg-primary-600 border-primary-300 text-white"
+                        : "bg-gray-900 border-gray-700 text-gray-300"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
           {translatorBusy && (
             <p className="text-sm text-primary-300 mt-2" role="status" aria-live="polite">
               Translating with Liblouis…
@@ -380,6 +556,20 @@ export default function TactileOutputPage() {
             />
             <span className="text-gray-300">Blank pins between frames</span>
           </label>
+
+          <div className="mt-4">
+            <Button
+              variant="secondary"
+              onClick={sendHid}
+              aria-label="Send to a connected HID braille display"
+              className="w-full"
+            >
+              <IconBraille className="w-5 h-5 inline mr-1" /> Send to HID braille display
+            </Button>
+            <p className="text-xs text-gray-400 mt-2">
+              WebHID requires Chrome/Edge over HTTPS. Pick a braille display when prompted.
+            </p>
+          </div>
         </section>
 
         <section aria-labelledby="preview-heading">

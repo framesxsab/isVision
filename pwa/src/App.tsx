@@ -21,6 +21,7 @@ const VisionAssistantPage = lazy(() => import("@/modules/ai-vision/VisionAssista
 const ReaderPage = lazy(() => import("@/modules/reader/ReaderPage"));
 const VoiceNavPage = lazy(() => import("@/modules/voice-nav/VoiceNavPage"));
 const TactileOutputPage = lazy(() => import("@/modules/tactile-output/TactileOutputPage"));
+const TactileDrillPage = lazy(() => import("@/modules/tactile-output/TactileDrillPage"));
 
 function PageLoader() {
   return (
@@ -91,6 +92,14 @@ export default function App() {
                 element={
                   <ErrorBoundary moduleName="Tactile Output Lab">
                     <TactileOutputPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/tactile-drill"
+                element={
+                  <ErrorBoundary moduleName="Tactile Drill">
+                    <TactileDrillPage />
                   </ErrorBoundary>
                 }
               />

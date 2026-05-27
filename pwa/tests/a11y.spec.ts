@@ -15,6 +15,7 @@ const ROUTES = [
   { path: "/reader", label: "Reader" },
   { path: "/voice-nav", label: "Voice Navigation" },
   { path: "/tactile-output", label: "Tactile Output Lab" },
+  { path: "/tactile-drill", label: "Tactile Drill" },
   { path: "/does-not-exist", label: "Not Found" },
 ] as const;
 

@@ -1,6 +1,13 @@
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/Card";
-import { IconTouch, IconCamera, IconBook, IconMicrophone, IconBraille } from "@/components/Icons";
+import {
+  IconBook,
+  IconBraille,
+  IconCamera,
+  IconMicrophone,
+  IconTarget,
+  IconTouch,
+} from "@/components/Icons";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useInstallPrompt } from "@/core/hooks/useInstallPrompt";
 import { Button } from "@/components/Button";
@@ -50,6 +57,13 @@ const modules: ModuleInfo[] = [
     description: "Convert text into braille frames for a tactile hardware prototype.",
     icon: <IconBraille className="w-6 h-6 text-primary-300" />,
     path: "/tactile-output",
+  },
+  {
+    id: "tactile-drill",
+    title: "Tactile Drill",
+    description: "Practice letters, words, and numbers in braille. Tracks your accuracy.",
+    icon: <IconTarget className="w-6 h-6 text-primary-300" />,
+    path: "/tactile-drill",
   },
 ];
 

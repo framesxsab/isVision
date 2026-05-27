@@ -22,10 +22,13 @@ Pin actuators under fingertip
 
 ### Input adapters
 
-- Plain text
-- Clipboard
-- Local files
-- Future: screen reader or accessibility tree integration
+- Plain text (Tactile Lab textarea — shipped)
+- Clipboard paste (Tactile Lab — shipped)
+- Local `.txt` / `.md` files (Tactile Lab — shipped)
+- Cross-module handoff: Reader → Tactile Lab via `sessionStorage` (shipped)
+- Future: integration with external screen readers (NVDA / JAWS / VoiceOver).
+  A PWA can't reach those directly from the browser sandbox; this is parked
+  until we have a companion native helper.
 
 ### Translation
 
@@ -62,7 +65,33 @@ Start with simple serial JSON lines for fast prototyping:
 {"type":"button","name":"next"}
 ```
 
-Later, move toward USB HID braille or a BRLTTY driver when the hardware behavior is stable.
+The Tactile Lab also exposes a "Send to HID braille display" path that uses
+WebHID (`navigator.hid`) with the standard Braille Display usage filter
+(usage page 0x41, usage 0x01) and writes a flat output report of cell masks.
+This is a scaffold — verified end-to-end only with stub devices in unit
+tests; live verification still requires a commercial display.
+
+BRLTTY driver integration is now wired up as an OS-side helper:
+`tools/tactile_serve.py` parses the compact protocol the PWA emits and
+dispatches each frame to one of:
+
+- `stdout` — pretty-prints the event stream (debug; no extra deps)
+- `serial:<port>` — relays the protocol byte-for-byte over `pyserial`
+- `brltty` — talks to a running BRLTTY daemon via BrlAPI (`python3-brlapi`),
+  writing each frame's dot masks as a `writeDots` buffer sized to the
+  connected display. Any BRLTTY-supported braille display can act as the
+  prototype's output surface this way.
+
+Typical pipeline from a saved PWA export:
+
+```bash
+python tools/tactile_serve.py --file frames.txt --out brltty
+python tools/tactile_serve.py --file frames.txt --out serial:COM5
+```
+
+`pyserial` and `brlapi` are imported lazily, so the script (and its tests)
+runs fine on a box that has neither installed — only the chosen sink needs
+its backing library.
 
 ## PWA tactile lab
 
@@ -80,14 +109,16 @@ The Tactile Lab now exposes two translators:
 
 - **Grade 1 (debug)** — the bundled in-process mapping. Sync, ships with the
   initial JS, used for tests and as the fallback when Liblouis can't load.
-- **Grade 2 (Liblouis)** — Unified English Braille contracted, served via the
-  liblouis-js Easy-API running in a Web Worker. The ~1.6 MB WASM build and
-  the UEB table set are kept out of the install-time precache and fetched on
-  first use; once cached they work offline.
+- **Grade 2 (Liblouis)** — served via the liblouis-js Easy-API running in a
+  Web Worker. The ~1.6 MB WASM build and the table set are kept out of the
+  install-time precache and fetched on first use; once cached they work
+  offline. A language selector switches between English UEB (contracted),
+  Français (BFU Grade 2), and Deutsch (Kurzschrift Grade 2).
 
-Adding a new table set (e.g. another language) means appending its files to
-`scripts/copy-liblouis-assets.mjs` and adding a second mode to
-`TactileOutputPage`.
+Adding another language means appending its `.ctb` / `.cti` / `.uti` / `.dis`
+dependency closure to `scripts/copy-liblouis-assets.mjs`, registering it in
+`LIBLOUIS_TABLES` in `liblouisAdapter.ts`, and adding one row to
+`LANGUAGE_OPTIONS` in `TactileOutputPage.tsx`.
 
 ## Hardware modules
 
@@ -109,6 +140,11 @@ Options to investigate:
 - Failure mode should be safe: pins lower or power cuts off.
 
 ## Test tasks
+
+The `/tactile-drill` page in the PWA wraps all six tasks below in a drill
+loop with attempt + accuracy + streak counters. Each task is selectable as a
+mode (letter / word / number / mixed), and a speech-mode toggle covers the
+speech-only vs speech-plus-tactile comparison.
 
 - Identify single letters.
 - Read short words.

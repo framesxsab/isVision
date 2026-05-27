@@ -7,12 +7,15 @@
 //   2. We instantiate EasyApiAsync, which spins up a Worker that importScripts()
 //      build-no-tables-utf16.js + easy-api.js. The Worker fetches table files
 //      lazily over XHR (sync XHR is allowed inside Workers).
-//   3. We translate via translateString("unicode.dis,en-ueb-g2.ctb", text), then
-//      convert the returned U+2800-block braille string back to BrailleCell[]
-//      so the rest of the pipeline (frame builder, serializer, UI) is unchanged.
+//   3. We translate via translateString("<table id>", text), then convert the
+//      returned U+2800-block braille string back to BrailleCell[] so the rest
+//      of the pipeline (frame builder, serializer, UI) is unchanged.
 //
 // The WASM build is large (~1.6 MB); this adapter is dynamically imported from
 // TactileOutputPage so the cost only lands when the user opts into Grade 2.
+// The worker handle itself is cached for the page lifetime — first translate
+// pays the init + initial-table fetch, subsequent translates (even in another
+// language) only fetch the new table.
 
 import { createCell, type BrailleCell } from "./brailleFrames";
 
@@ -28,7 +31,20 @@ const SCRIPT_URL = "/liblouis/easy-api.js";
 const CAPI_URL = "liblouis/build-no-tables-utf16.js";
 const EASYAPI_URL = "liblouis/easy-api.js";
 const TABLES_URL = "/tables/";
-const GRADE_2_TABLE = "unicode.dis,en-ueb-g2.ctb";
+
+// Liblouis table identifiers (comma-separated chains as the API expects them).
+// Each entry is the table file plus unicode.dis so the worker returns U+2800
+// braille glyphs rather than ASCII-braille (NABCC) characters.
+export const LIBLOUIS_TABLES = {
+  "en-g2": "unicode.dis,en-ueb-g2.ctb",
+  "en-g1": "unicode.dis,en-ueb-g1.ctb",
+  "fr-g2": "unicode.dis,fr-bfu-g2.ctb",
+  "de-g2": "unicode.dis,de-de-g2.ctb",
+} as const satisfies Record<string, string>;
+
+export type LiblouisTableId = keyof typeof LIBLOUIS_TABLES;
+
+export const DEFAULT_TABLE: LiblouisTableId = "en-g2";
 
 const INIT_TIMEOUT_MS = 15_000;
 const TRANSLATE_TIMEOUT_MS = 8_000;
@@ -116,13 +132,21 @@ async function getApi(): Promise<LiblouisAsyncApi> {
   return apiPromise;
 }
 
-export async function translateGrade2(text: string): Promise<BrailleCell[]> {
+export async function translateWithTable(
+  text: string,
+  table: LiblouisTableId = DEFAULT_TABLE
+): Promise<BrailleCell[]> {
   if (text.length === 0) return [];
+
+  const tableChain = LIBLOUIS_TABLES[table];
+  if (!tableChain) {
+    throw new Error(`Unknown Liblouis table: ${String(table)}`);
+  }
 
   const api = await getApi();
   const braille: string = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Liblouis translate timed out.")), TRANSLATE_TIMEOUT_MS);
-    api.translateString(GRADE_2_TABLE, text, (result) => {
+    api.translateString(tableChain, text, (result) => {
       clearTimeout(timer);
       if (typeof result === "string") {
         resolve(result);
@@ -133,6 +157,12 @@ export async function translateGrade2(text: string): Promise<BrailleCell[]> {
   });
 
   return brailleStringToCells(braille);
+}
+
+// Back-compat shim. Older callers passed no table and expected UEB Grade 2;
+// preserve that exact behavior so we don't have to retest every caller.
+export function translateGrade2(text: string): Promise<BrailleCell[]> {
+  return translateWithTable(text, "en-g2");
 }
 
 // Exposed for unit tests so the U+2800 → BrailleCell decoder can be exercised

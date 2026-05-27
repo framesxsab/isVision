@@ -8,10 +8,18 @@ import { useNavigate } from "react-router-dom";
 import { useReader } from "./useReader";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { IconArrowLeft, IconPlay, IconPause, IconSkipForward, IconSkipBack } from "@/components/Icons";
+import {
+  IconArrowLeft,
+  IconBraille,
+  IconPlay,
+  IconPause,
+  IconSkipForward,
+  IconSkipBack,
+} from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useAnnounce } from "@/core/a11y/AriaLive";
+import { pushTactileHandoff } from "@/modules/tactile-output/inputAdapters";
 
 export default function ReaderPage() {
   const navigate = useNavigate();
@@ -143,6 +151,28 @@ export default function ReaderPage() {
         <div className="max-w-lg mx-auto">
           {title && (
             <h2 className="text-2xl font-bold text-white mb-4">{title}</h2>
+          )}
+
+          {chunks.length > 0 && (
+            <div className="mb-4">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  // Prefer the currently-playing chunk so users can drill on
+                  // the bit they're hearing. If nothing is in focus, ship the
+                  // whole article — the Tactile Lab will cap the length.
+                  const fallback = chunks.join(" ");
+                  const focused = chunks[currentChunk] ?? fallback;
+                  const payload = focused.length > 0 ? focused : fallback;
+                  pushTactileHandoff(payload, "Reader");
+                  speechEngine.interrupt("Sending text to Tactile Lab.");
+                  navigate("/tactile-output");
+                }}
+                aria-label="Send the current paragraph (or the whole article if none is playing) to the Tactile Lab"
+              >
+                <IconBraille className="w-5 h-5 inline mr-1" /> Send to Tactile Lab
+              </Button>
+            </div>
           )}
 
           {/* Table of contents */}
