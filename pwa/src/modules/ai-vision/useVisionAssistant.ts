@@ -19,6 +19,17 @@ interface HistoryEntry {
   timestamp: number;
 }
 
+// How long to wait between the "hold still" prompt and the actual frame
+// grab. Blind users can't see when the shutter fires, so we need to give
+// them a real moment to stabilize the device after they tap capture.
+const HOLD_STILL_DELAY_MS = 700;
+
+// Minimum sharpness score (variance of Laplacian) before we accept a frame.
+// Below this the image is almost certainly motion-blurred or out of focus.
+// Tuned empirically against a webcam — feel free to raise if false positives
+// become a problem.
+const MIN_SHARPNESS = 30;
+
 export function useVisionAssistant() {
   const [state, setState] = useState<VisionState>("idle");
   const [description, setDescription] = useState("");
@@ -31,12 +42,62 @@ export function useVisionAssistant() {
     videoRef.current = video;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: { ideal: "environment" },
+          // Higher resolution gives the vision model more detail to work with.
+          // The model resizes anyway, but a sharp 1920x1080 source beats a
+          // soft 640x480 one — especially for text or distant objects.
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+        },
+        audio: false,
       });
       video.srcObject = stream;
+      video.setAttribute("playsinline", "true");
       await video.play();
+
+      // Wait for the first real frame before allowing capture — without
+      // this, videoWidth can be 0 and the canvas comes out empty.
+      if (video.readyState < 2) {
+        await new Promise<void>((resolve) => {
+          const onReady = () => {
+            video.removeEventListener("loadeddata", onReady);
+            resolve();
+          };
+          video.addEventListener("loadeddata", onReady);
+        });
+      }
+
+      // Ask the camera for continuous autofocus where the browser/device
+      // supports it. Many laptop webcams default to fixed focus, which is
+      // why text in their feed looks soft.
+      const track = stream.getVideoTracks()[0];
+      if (track && "getCapabilities" in track) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const caps = (track as any).getCapabilities?.() ?? {};
+          const wanted: Record<string, unknown> = {};
+          if (Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
+            wanted.focusMode = "continuous";
+          }
+          if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("continuous")) {
+            wanted.exposureMode = "continuous";
+          }
+          if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("continuous")) {
+            wanted.whiteBalanceMode = "continuous";
+          }
+          if (Object.keys(wanted).length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (track as any).applyConstraints?.({ advanced: [wanted] });
+          }
+        } catch {
+          // Constraint application is best-effort — older or restricted
+          // browsers throw on advanced constraints. The base stream is
+          // still usable, just without continuous AF tuning.
+        }
+      }
     } catch (err) {
-      const msg = "Could not access camera. Please grant camera permission.";
+      const msg = explainCameraError(err);
       setError(msg);
       speechEngine.interrupt(msg);
     }
@@ -52,40 +113,60 @@ export function useVisionAssistant() {
 
   const captureAndDescribe = useCallback(
     async (context?: string) => {
-      if (state === "analyzing") return;
+      if (state === "analyzing" || state === "capturing") return;
       const video = videoRef.current;
       if (!video) return;
 
+      // Refuse to capture an empty frame. Without this check, tapping the
+      // shutter before the camera has produced its first frame sends a
+      // blank image to the model and gets back "I can't see anything".
+      if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+        const msg = "Camera is still warming up. Please wait a moment and try again.";
+        setError(msg);
+        earcons.error();
+        speechEngine.interrupt(msg);
+        return;
+      }
+
       setState("capturing");
+      setError(null);
       earcons.capture();
-      announce("Capturing image");
-      speechEngine.interrupt("Capturing image. Please hold still.");
+      announce("Hold still");
+      speechEngine.interrupt("Hold still.");
 
-      // Capture frame to canvas
-      const canvas = document.createElement("canvas");
-      const maxDim = 1024;
-      const scale = Math.min(maxDim / video.videoWidth, maxDim / video.videoHeight, 1);
-      canvas.width = video.videoWidth * scale;
-      canvas.height = video.videoHeight * scale;
+      // Give the user a real moment to stabilize the device after the
+      // "hold still" prompt before we actually grab the frame. Without
+      // this delay every photo is taken in mid-motion.
+      await new Promise((resolve) => setTimeout(resolve, HOLD_STILL_DELAY_MS));
 
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Re-check after the delay — the camera may have stopped, the page
+      // may have unmounted, or the user may have navigated away.
+      if (!videoRef.current || videoRef.current.readyState < 2) {
+        setState("idle");
+        return;
+      }
 
-      // Convert to base64
-      const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-      if (!base64) return;
+      const liveVideo = videoRef.current;
+      const frame = await captureSharpFrame(liveVideo);
+      if (!frame) {
+        const msg =
+          "Image was too blurry to use. Please hold the camera steady and try again.";
+        setError(msg);
+        earcons.error();
+        setState("idle");
+        speechEngine.interrupt(msg);
+        return;
+      }
 
       setState("analyzing");
       announce("Analyzing image");
-      speechEngine.interrupt("Analyzing image. One moment please.");
+      speechEngine.interrupt("Analyzing.");
 
       try {
-        const result = await describeImage(base64, context);
+        const result = await describeImage(frame.base64, context);
         setDescription(result);
         setError(null);
 
-        // Add to history
         const entry: HistoryEntry = {
           id: Date.now().toString(),
           description: result,
@@ -114,9 +195,17 @@ export function useVisionAssistant() {
 
   const describeFromFile = useCallback(
     async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        const msg = "That file is not an image. Please pick a JPEG or PNG.";
+        setError(msg);
+        speechEngine.interrupt(msg);
+        return;
+      }
+
       setState("analyzing");
+      setError(null);
       announce("Analyzing uploaded image");
-      speechEngine.interrupt("Analyzing uploaded image. One moment please.");
+      speechEngine.interrupt("Analyzing uploaded image.");
 
       try {
         const base64 = await fileToBase64(file);
@@ -166,6 +255,118 @@ export function useVisionAssistant() {
     describeFromFile,
     repeatDescription,
   };
+}
+
+// Capture up to 3 frames spaced ~150ms apart and return the sharpest one.
+// Without this, a single bad-luck frame (mid-blink-of-shutter, AF hunting,
+// auto-exposure adjusting) ruins the description even when the user held
+// still. We measure sharpness via the variance of the Laplacian on a
+// downsampled grayscale crop — a standard motion-blur detector.
+async function captureSharpFrame(
+  video: HTMLVideoElement
+): Promise<{ base64: string; sharpness: number } | null> {
+  const maxDim = 1600;
+  const scale = Math.min(
+    maxDim / video.videoWidth,
+    maxDim / video.videoHeight,
+    1
+  );
+  const width = Math.round(video.videoWidth * scale);
+  const height = Math.round(video.videoHeight * scale);
+
+  let best: { base64: string; sharpness: number } | null = null;
+
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) continue;
+
+    ctx.drawImage(video, 0, 0, width, height);
+    const sharpness = measureSharpness(ctx, width, height);
+    const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    if (!base64) continue;
+
+    if (!best || sharpness > best.sharpness) {
+      best = { base64, sharpness };
+    }
+  }
+
+  if (!best) return null;
+  if (best.sharpness < MIN_SHARPNESS) return null;
+  return best;
+}
+
+// Variance of the Laplacian on a center crop, downsampled for speed.
+// Lower variance = more uniform pixels = blurrier image. This is the
+// standard OpenCV technique adapted for canvas pixels.
+function measureSharpness(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): number {
+  const cropSize = Math.min(width, height, 300);
+  const cx = Math.floor((width - cropSize) / 2);
+  const cy = Math.floor((height - cropSize) / 2);
+  const img = ctx.getImageData(cx, cy, cropSize, cropSize);
+  const data = img.data;
+
+  // Convert to grayscale into a Float32Array for the Laplacian step.
+  const gray = new Float32Array(cropSize * cropSize);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    gray[j] = 0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!;
+  }
+
+  // 4-neighbour Laplacian kernel: center * 4 - up - down - left - right.
+  let sum = 0;
+  let sumSq = 0;
+  let count = 0;
+  for (let y = 1; y < cropSize - 1; y++) {
+    for (let x = 1; x < cropSize - 1; x++) {
+      const i = y * cropSize + x;
+      const lap =
+        4 * gray[i]! -
+        gray[i - 1]! -
+        gray[i + 1]! -
+        gray[i - cropSize]! -
+        gray[i + cropSize]!;
+      sum += lap;
+      sumSq += lap * lap;
+      count++;
+    }
+  }
+
+  if (count === 0) return 0;
+  const mean = sum / count;
+  return sumSq / count - mean * mean;
+}
+
+function explainCameraError(err: unknown): string {
+  if (!(err instanceof Error)) {
+    return "Could not access the camera. Please grant camera permission.";
+  }
+  const name = err.name;
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "Camera permission was denied. Allow camera access in your browser settings and try again.";
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "No camera was found. Please connect a camera and try again.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "The camera is in use by another app. Close that app and try again.";
+  }
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return "The camera does not support the requested resolution. Try a different device.";
+  }
+  if (name === "SecurityError") {
+    return "Camera access is blocked. The page must be served over HTTPS or localhost.";
+  }
+  return `Could not access the camera: ${err.message}`;
 }
 
 function fileToBase64(file: File): Promise<string> {
