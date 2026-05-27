@@ -16,6 +16,7 @@ import {
 } from "@/components/Icons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { speechEngine } from "@/core/audio/SpeechEngine";
+import { detectSpeechSynthesis } from "@/core/utils/capabilities";
 import { translateGrade1Debug } from "./brailleFrames";
 import {
   accuracyPercent,
@@ -62,6 +63,10 @@ export default function TactileDrillPage() {
   const current = history[cursor]!;
   const cells = useMemo(() => translateGrade1Debug(current.answer), [current.answer]);
   const braillePreview = cells.map((c) => c.unicode).join("");
+  // Detected once per mount; the speech engine doesn't appear or disappear
+  // mid-session, so re-probing on every render would be wasted work.
+  const speechCap = useMemo(() => detectSpeechSynthesis(), []);
+  const speechNeeded = speechMode !== "silent";
 
   // Mode change → fresh prompt list so old letter cards don't mix into a word
   // drill. We keep the score so the learner can compare modes if they like.
@@ -217,6 +222,13 @@ export default function TactileDrillPage() {
           <p id="speech-hint" className="text-sm text-gray-300 mt-2">
             {SPEECH_OPTIONS.find((o) => o.id === speechMode)!.hint}
           </p>
+          {speechNeeded && !speechCap.available && (
+            <p role="alert" className="text-sm text-yellow-300 mt-2">
+              {speechCap.reason} {speechCap.suggestion} The drill will still
+              run silently — switch to Tactile only if you don't want the
+              warning.
+            </p>
+          )}
         </section>
 
         <section aria-labelledby="prompt-heading">

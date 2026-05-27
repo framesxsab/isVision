@@ -50,14 +50,17 @@ export async function readTextFile(file: File): Promise<FileImportResult> {
     return {
       ok: false,
       reason: "type",
-      message: `Unsupported file type. Use plain text or markdown.`,
+      message:
+        "Unsupported file type. Pick a .txt or .md file, or copy the text into the textarea instead.",
     };
   }
   if (file.size > MAX_INPUT_BYTES) {
+    const limitKb = Math.round(MAX_INPUT_BYTES / 1024);
+    const fileKb = Math.max(1, Math.round(file.size / 1024));
     return {
       ok: false,
       reason: "size",
-      message: `File is too large. Limit is ${Math.round(MAX_INPUT_BYTES / 1024)} KB.`,
+      message: `File is ${fileKb} KB but the limit is ${limitKb} KB. Trim or split the file and try again.`,
     };
   }
   try {

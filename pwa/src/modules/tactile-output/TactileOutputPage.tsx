@@ -11,6 +11,11 @@ import {
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import {
+  detectClipboardRead,
+  detectWebHid,
+  detectWebSerial,
+} from "@/core/utils/capabilities";
+import {
   buildTactileFrames,
   serializeCompactFrames,
   serializeFrames,
@@ -79,6 +84,16 @@ export default function TactileOutputPage() {
   );
   const [translatorBusy, setTranslatorBusy] = useState(false);
   const [translatorError, setTranslatorError] = useState<string | null>(null);
+  // Incremented when the user clicks Retry after a Liblouis failure; the
+  // translator effect watches it so the click triggers a fresh attempt
+  // without us having to expose an imperative handle.
+  const [retryToken, setRetryToken] = useState(0);
+
+  // Browser-feature detection. Memoised so re-renders don't re-probe globals
+  // and the consumer can compare report references cheaply.
+  const serialCap = useMemo(() => detectWebSerial(), []);
+  const hidCap = useMemo(() => detectWebHid(), []);
+  const clipboardReadCap = useMemo(() => detectClipboardRead(), []);
 
   useEffect(() => {
     // Consume any text another module handed off (e.g. Reader). One-shot so
@@ -176,7 +191,9 @@ export default function TactileOutputPage() {
     return () => {
       cancelled = true;
     };
-  }, [text, translatorMode, language]);
+    // retryToken is included so the Retry button can force a new attempt
+    // even when text/mode/language haven't changed.
+  }, [text, translatorMode, language, retryToken]);
 
   const frames = useMemo(() => buildTactileFrames(cells, groupSize), [cells, groupSize]);
   const frameText = useMemo(() => serializeFrames(frames), [frames]);
@@ -227,26 +244,26 @@ export default function TactileOutputPage() {
   const sendSerialRef = useRef<() => void>(() => {});
 
   const sendHid = async () => {
-    // Dynamic import: the adapter file is ~3 KB but only the HID-curious
-    // users ever need it, so deferring keeps it out of the initial chunk.
-    const { sendBraille, isWebHidSupported } = await import("./webHidAdapter");
-    if (!isWebHidSupported()) {
-      updateStatus("WebHID is not supported in this browser.");
-      speechEngine.interrupt("WebHID not supported.");
+    if (!hidCap.available) {
+      updateStatus(`${hidCap.reason} ${hidCap.suggestion}`);
+      speechEngine.interrupt(hidCap.reason);
       return;
     }
+    // Dynamic import: the adapter file is ~3 KB but only the HID-curious
+    // users ever need it, so deferring keeps it out of the initial chunk.
+    const { sendBraille } = await import("./webHidAdapter");
     const result = await sendBraille(cells);
     updateStatus(result.message);
     speechEngine.interrupt(result.message);
   };
 
   const sendSerial = async () => {
-    const serial = (navigator as NavigatorWithSerial).serial;
-    if (!serial) {
-      updateStatus("Web Serial is not supported in this browser.");
-      speechEngine.interrupt("Web Serial is not supported in this browser.");
+    if (!serialCap.available) {
+      updateStatus(`${serialCap.reason} ${serialCap.suggestion}`);
+      speechEngine.interrupt(serialCap.reason);
       return;
     }
+    const serial = (navigator as NavigatorWithSerial).serial!;
 
     let port: SerialPortLike | null = null;
     let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
@@ -279,9 +296,9 @@ export default function TactileOutputPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const pasteFromClipboard = async () => {
-    if (!navigator.clipboard?.readText) {
-      updateStatus("Clipboard read is not supported in this browser.");
-      speechEngine.interrupt("Clipboard not supported.");
+    if (!clipboardReadCap.available) {
+      updateStatus(`${clipboardReadCap.reason} ${clipboardReadCap.suggestion}`);
+      speechEngine.interrupt(clipboardReadCap.reason);
       return;
     }
     try {
@@ -291,16 +308,19 @@ export default function TactileOutputPage() {
       // the limit on one path but not another.
       const trimmed = pasted.slice(0, MAX_INPUT_CHARS);
       if (trimmed.length === 0) {
-        updateStatus("Clipboard is empty.");
+        updateStatus("Clipboard is empty. Copy some text first, then try again.");
         return;
       }
       setText(trimmed);
       rememberImportedText(trimmed, "clipboard");
       updateStatus(`Pasted ${trimmed.length} characters from clipboard.`);
     } catch {
-      // Permission denied or focus issues — both are non-fatal.
-      updateStatus("Could not read clipboard. Check browser permissions.");
-      speechEngine.interrupt("Clipboard read failed.");
+      // Permission denied or focus issues — surface a concrete next step
+      // rather than the raw browser error.
+      updateStatus(
+        "Clipboard read was blocked. Allow clipboard access in your browser settings, or paste into the textarea by hand."
+      );
+      speechEngine.interrupt("Clipboard read blocked.");
     }
   };
 
@@ -351,7 +371,12 @@ export default function TactileOutputPage() {
               <Button
                 variant="ghost"
                 onClick={pasteFromClipboard}
-                aria-label="Paste text from clipboard"
+                disabled={!clipboardReadCap.available}
+                aria-label={
+                  clipboardReadCap.available
+                    ? "Paste text from clipboard"
+                    : `Paste from clipboard unavailable. ${clipboardReadCap.suggestion}`
+                }
               >
                 <IconClipboard className="w-5 h-5" />
               </Button>
@@ -465,9 +490,22 @@ export default function TactileOutputPage() {
             </p>
           )}
           {translatorError && (
-            <p className="text-sm text-red-300 mt-2" role="alert">
-              Liblouis failed ({translatorError}). Falling back to Grade 1.
-            </p>
+            <div role="alert" className="mt-2">
+              <p className="text-sm text-red-300">
+                Liblouis failed ({translatorError}). Showing Grade 1 in the meantime.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setTranslatorError(null);
+                  setRetryToken((token) => token + 1);
+                }}
+                className="mt-2"
+                aria-label="Retry the Liblouis translation"
+              >
+                Retry Liblouis
+              </Button>
+            </div>
           )}
         </section>
 
@@ -561,13 +599,17 @@ export default function TactileOutputPage() {
             <Button
               variant="secondary"
               onClick={sendHid}
+              disabled={!hidCap.available}
               aria-label="Send to a connected HID braille display"
+              aria-describedby="hid-hint"
               className="w-full"
             >
               <IconBraille className="w-5 h-5 inline mr-1" /> Send to HID braille display
             </Button>
-            <p className="text-xs text-gray-400 mt-2">
-              WebHID requires Chrome/Edge over HTTPS. Pick a braille display when prompted.
+            <p id="hid-hint" className="text-xs text-gray-400 mt-2">
+              {hidCap.available
+                ? "WebHID requires Chrome/Edge over HTTPS. Pick a braille display when prompted."
+                : `${hidCap.reason} ${hidCap.suggestion}`}
             </p>
           </div>
         </section>
@@ -643,12 +685,22 @@ export default function TactileOutputPage() {
           <Button variant="secondary" onClick={saveFrames} aria-keyshortcuts="S">
             <IconUpload className="w-5 h-5 inline mr-1" /> Save (S)
           </Button>
-          <Button onClick={sendSerial} aria-keyshortcuts="N">
+          <Button
+            onClick={sendSerial}
+            disabled={!serialCap.available}
+            aria-keyshortcuts="N"
+            aria-describedby="serial-hint"
+          >
             <IconBraille className="w-5 h-5 inline mr-1" /> Send (N)
           </Button>
         </div>
-        <p className="max-w-lg mx-auto text-center text-xs text-gray-400 mt-2">
-          Keyboard: C copy, S save, N send, V speak preview. F6 anywhere for voice.
+        <p
+          id="serial-hint"
+          className="max-w-lg mx-auto text-center text-xs text-gray-400 mt-2"
+        >
+          {serialCap.available
+            ? "Keyboard: C copy, S save, N send, V speak preview. F6 anywhere for voice."
+            : `${serialCap.reason} ${serialCap.suggestion}`}
         </p>
       </div>
     </div>
