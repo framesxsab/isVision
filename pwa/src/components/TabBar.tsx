@@ -20,9 +20,9 @@ export function TabBar() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-700 z-40"
+      className="fixed bottom-0 left-0 right-0 bg-stone-950/95 backdrop-blur border-t border-stone-700 z-40 pb-[env(safe-area-inset-bottom)]"
     >
-      <div className="flex justify-around items-center max-w-lg mx-auto">
+      <div className="flex justify-around items-center max-w-3xl mx-auto px-3">
         {tabs.map((tab) => {
           const isActive = location.pathname === tab.path;
           return (
@@ -31,15 +31,20 @@ export function TabBar() {
               onClick={() => navigate(tab.path)}
               className={`
                 flex flex-col items-center justify-center
-                min-h-touch min-w-touch py-2 px-4
-                text-sm font-medium transition-colors
-                ${isActive ? "text-primary-400" : "text-gray-400 hover:text-gray-200"}
+                min-h-touch min-w-[88px] py-1 px-3
+                text-xs font-medium transition-colors
+                border-t-2
+                ${
+                  isActive
+                    ? "text-primary-300 border-primary-400"
+                    : "text-stone-400 hover:text-stone-100 border-transparent"
+                }
               `}
               aria-label={tab.label}
               aria-current={isActive ? "page" : undefined}
             >
               {tab.icon}
-              <span className="mt-0.5">{tab.label}</span>
+              <span>{tab.label}</span>
             </button>
           );
         })}

@@ -13,25 +13,25 @@ export function Card({ title, description, icon, onClick, className = "" }: Card
     <button
       onClick={onClick}
       className={`
-        w-full min-h-touch p-5
-        bg-gray-900 hover:bg-gray-800 active:bg-gray-700
-        border border-gray-700 rounded-2xl
+        group w-full min-h-touch p-3
+        bg-stone-950/80 hover:bg-stone-900 active:bg-stone-800
+        border border-stone-700/80 rounded-lg
         text-left transition-colors duration-150
         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950
         ${className}
       `}
       aria-label={`${title}. ${description}`}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3">
         <div
-          className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary-900 flex items-center justify-center text-2xl"
+          className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-950 border border-primary-800 flex items-center justify-center text-2xl group-hover:border-primary-500"
           aria-hidden="true"
         >
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white">{title}</h3>
-          <p className="text-sm text-gray-400 mt-1">{description}</p>
+          <h3 className="text-base font-bold text-stone-50">{title}</h3>
+          <p className="text-sm text-stone-300 mt-0.5 leading-relaxed">{description}</p>
         </div>
       </div>
     </button>

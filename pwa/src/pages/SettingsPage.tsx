@@ -138,23 +138,23 @@ export default function SettingsPage() {
   }, [runReadinessCheck]);
 
   return (
-    <div className="min-h-screen px-4 py-6 max-w-lg mx-auto">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="min-h-screen px-4 py-6 max-w-3xl mx-auto">
+      <div className="flex items-center gap-3 mb-6 border-b border-stone-700/80 pb-5">
         <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
           <IconArrowLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <h1 className="text-2xl font-bold text-stone-50">Settings</h1>
       </div>
 
       {/* Speech Settings */}
       <section aria-labelledby="speech-heading" className="mb-8">
-        <h2 id="speech-heading" className="text-lg font-semibold text-white mb-4">
+        <h2 id="speech-heading" className="text-lg font-semibold text-stone-50 mb-4">
           Speech
         </h2>
 
         <div className="space-y-5">
           <div>
-            <label htmlFor="voice-select" className="block text-sm text-gray-300 mb-2">
+            <label htmlFor="voice-select" className="block text-sm text-stone-300 mb-2">
               Voice
             </label>
             <select
@@ -162,7 +162,7 @@ export default function SettingsPage() {
               value={settings.voiceURI ?? ""}
               onChange={(e) => settings.setVoiceURI(e.target.value || null)}
               aria-describedby="voice-hint"
-              className="w-full min-h-touch bg-gray-800 text-white border border-gray-600 rounded-xl px-4 py-3"
+              className="w-full min-h-touch bg-stone-950 text-stone-50 border border-stone-700 rounded-lg px-4 py-3"
             >
               <option value="">System default</option>
               {voices.map((v) => (
@@ -175,7 +175,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label htmlFor="rate-slider" className="block text-sm text-gray-300 mb-2">
+            <label htmlFor="rate-slider" className="block text-sm text-stone-300 mb-2">
               Speed: {settings.speechRate.toFixed(1)}x
             </label>
             <input
@@ -195,7 +195,7 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label htmlFor="pitch-slider" className="block text-sm text-gray-300 mb-2">
+            <label htmlFor="pitch-slider" className="block text-sm text-stone-300 mb-2">
               Pitch: {settings.speechPitch.toFixed(1)}
             </label>
             <input
@@ -219,7 +219,7 @@ export default function SettingsPage() {
 
       {/* Display Settings */}
       <section aria-labelledby="display-heading" className="mb-8">
-        <h2 id="display-heading" className="text-lg font-semibold text-white mb-4">
+        <h2 id="display-heading" className="text-lg font-semibold text-stone-50 mb-4">
           Display
         </h2>
 
@@ -231,11 +231,11 @@ export default function SettingsPage() {
               onChange={(e) => settings.setHighContrast(e.target.checked)}
               className="w-6 h-6 rounded"
             />
-            <span className="text-white">High contrast mode</span>
+            <span className="text-stone-50">High contrast mode</span>
           </label>
 
           <div>
-            <label htmlFor="font-slider" className="block text-sm text-gray-300 mb-2">
+            <label htmlFor="font-slider" className="block text-sm text-stone-300 mb-2">
               Font size: {settings.fontSize}px
             </label>
             <input
@@ -255,7 +255,7 @@ export default function SettingsPage() {
 
       {/* Feature Toggles */}
       <section aria-labelledby="features-heading" className="mb-8">
-        <h2 id="features-heading" className="text-lg font-semibold text-white mb-4">
+        <h2 id="features-heading" className="text-lg font-semibold text-stone-50 mb-4">
           Features
         </h2>
 
@@ -268,10 +268,10 @@ export default function SettingsPage() {
               disabled={!platform.supportsVibration}
               className="w-6 h-6 rounded"
             />
-            <span className="text-white">
+            <span className="text-stone-50">
               Haptic feedback
               {!platform.supportsVibration && (
-                <span className="text-gray-500 text-sm block">
+                <span className="text-stone-500 text-sm block">
                   Not supported on this device
                 </span>
               )}
@@ -285,7 +285,7 @@ export default function SettingsPage() {
               onChange={(e) => settings.setSpatialAudioEnabled(e.target.checked)}
               className="w-6 h-6 rounded"
             />
-            <span className="text-white">Spatial audio cues</span>
+            <span className="text-stone-50">Spatial audio cues</span>
           </label>
         </div>
       </section>
@@ -313,12 +313,12 @@ function PrivacySection({
 }) {
   return (
     <section aria-labelledby="privacy-heading" className="mb-8">
-      <h2 id="privacy-heading" className="text-lg font-semibold text-white mb-2">
+      <h2 id="privacy-heading" className="text-lg font-semibold text-stone-50 mb-2">
         Privacy &amp; data
       </h2>
-      <p className="text-sm text-gray-300 mb-4">
-        Every place this app touches your data. The coloured chip on each row
-        says where it goes. Tap a row to read the longer explanation.
+      <p className="text-sm text-stone-300 mb-4">
+        Every place this app touches your data. Each row names where it is
+        stored or sent. Expand a row to read the full explanation.
       </p>
       <ul className="space-y-2" aria-label="Privacy disclosures">
         {DISCLOSURES.map((d) => (
@@ -334,13 +334,13 @@ function PrivacySection({
         >
           Clear saved data
         </Button>
-        <p className="text-xs text-gray-400 mt-2">
+        <p className="text-xs text-stone-400 mt-2">
           Resets translator/language/output choices, imported text, drill
           history, voice and display preferences. Onboarding stays marked
           complete so you don't get sent back to the welcome flow.
         </p>
         {clearMessage && (
-          <p className="text-xs text-green-300 mt-2" role="status" aria-live="polite">
+          <p className="text-xs text-emerald-300 mt-2" role="status" aria-live="polite">
             {clearMessage}
           </p>
         )}
@@ -353,30 +353,27 @@ function DisclosureRow({ disclosure }: { disclosure: Disclosure }) {
   const chipClasses = SCOPE_CLASSES[disclosure.scope];
   const chipLabel = SCOPE_LABELS[disclosure.scope];
   return (
-    <li className="bg-gray-900 border border-gray-700 rounded-lg">
+    <li className="bg-stone-950/80 border border-stone-700/80 rounded-lg">
       <details className="group">
         <summary
           className="min-h-touch px-3 py-3 cursor-pointer flex items-start justify-between gap-3 list-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-lg"
-          aria-describedby={`disclosure-${disclosure.id}-summary`}
+          aria-label={`${disclosure.title}, stored ${chipLabel}. ${disclosure.summary}. Expand for full details.`}
         >
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" aria-hidden="true">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-white font-medium">{disclosure.title}</span>
+              <span className="text-stone-50 font-medium">{disclosure.title}</span>
               <span
                 className={`text-xs border rounded-full px-2 py-0.5 whitespace-nowrap ${chipClasses}`}
               >
                 {chipLabel}
               </span>
             </div>
-            <p
-              id={`disclosure-${disclosure.id}-summary`}
-              className="text-sm text-gray-300 mt-1"
-            >
+            <p className="text-sm text-stone-300 mt-1">
               {disclosure.summary}
             </p>
           </div>
         </summary>
-        <p className="px-3 pb-3 text-sm text-gray-300 leading-relaxed">
+        <p className="px-3 pb-3 text-sm text-stone-300 leading-relaxed">
           {disclosure.detail}
         </p>
       </details>
@@ -404,10 +401,10 @@ function OfflineReadinessSection({
 }) {
   return (
     <section aria-labelledby="offline-heading" className="mb-8">
-      <h2 id="offline-heading" className="text-lg font-semibold text-white mb-2">
+      <h2 id="offline-heading" className="text-lg font-semibold text-stone-50 mb-2">
         Offline readiness
       </h2>
-      <p className="text-sm text-gray-300 mb-4">
+      <p className="text-sm text-stone-300 mb-4">
         Shows what's actually cached right now. After you install the app and
         use Grade 2 once online, those assets should switch to "cached" and
         stay usable without a network.
@@ -456,12 +453,12 @@ function OfflineReadinessSection({
             {precacheBusy ? "Caching…" : "Cache language tables"}
           </Button>
         )}
-        <span className="text-xs text-gray-400" aria-live="polite">
+        <span className="text-xs text-stone-400" aria-live="polite">
           {report ? `Last checked ${formatRelativeTime(report.checkedAt)}` : ""}
         </span>
       </div>
       {precacheMessage && (
-        <p className="text-xs text-gray-300 mt-2" role="status" aria-live="polite">
+        <p className="text-xs text-stone-300 mt-2" role="status" aria-live="polite">
           {precacheMessage}
         </p>
       )}
@@ -480,14 +477,17 @@ function ReadinessRow({
 }) {
   const { dot, copy } = renderStatus(status);
   return (
-    <li className="flex items-start gap-3 bg-gray-900 border border-gray-700 rounded-lg p-3">
+    <li
+      className="flex items-start gap-3 bg-stone-950/80 border border-stone-700/80 rounded-lg p-3"
+      aria-label={`${label}: ${copy}. ${help}`}
+    >
       <span aria-hidden="true" className={`mt-1 inline-block w-3 h-3 rounded-full ${dot}`} />
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0" aria-hidden="true">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-white font-medium">{label}</span>
-          <span className="text-sm text-gray-300">{copy}</span>
+          <span className="text-stone-50 font-medium">{label}</span>
+          <span className="text-sm text-stone-300">{copy}</span>
         </div>
-        <p className="text-xs text-gray-400 mt-1">{help}</p>
+        <p className="text-xs text-stone-400 mt-1">{help}</p>
       </div>
     </li>
   );
@@ -495,12 +495,12 @@ function ReadinessRow({
 
 function renderStatus(status: Status): { dot: string; copy: string } {
   if (status === "cached") {
-    return { dot: "bg-green-400", copy: "Cached" };
+    return { dot: "bg-emerald-400", copy: "Cached" };
   }
   if (status === "missing") {
     return { dot: "bg-yellow-400", copy: "Not cached yet" };
   }
-  return { dot: "bg-gray-500", copy: "Unknown" };
+  return { dot: "bg-stone-500", copy: "Unknown" };
 }
 
 function formatRelativeTime(at: number): string {

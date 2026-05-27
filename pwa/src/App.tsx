@@ -48,7 +48,7 @@ export default function App() {
       <SkipLinks />
       <UpdateBanner />
       <OfflineBanner />
-      <main id="main-content" className="pb-20">
+      <main id="main-content" className="pb-nav">
         <ErrorBoundary moduleName="app">
           <Suspense fallback={<PageLoader />}>
             <Routes>

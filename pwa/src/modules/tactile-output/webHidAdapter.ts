@@ -44,6 +44,7 @@ interface NavigatorHidLike {
 }
 
 export function getHidApi(): NavigatorHidLike | null {
+  if (typeof navigator === "undefined") return null;
   const nav = navigator as Navigator & { hid?: NavigatorHidLike };
   return nav.hid ?? null;
 }

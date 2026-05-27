@@ -5,13 +5,14 @@ import {
   IconBraille,
   IconCamera,
   IconMicrophone,
+  IconSettings,
   IconTarget,
   IconTouch,
 } from "@/components/Icons";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useInstallPrompt } from "@/core/hooks/useInstallPrompt";
 import { Button } from "@/components/Button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 interface ModuleInfo {
@@ -26,42 +27,42 @@ const modules: ModuleInfo[] = [
   {
     id: "touch-explorer",
     title: "Touch Explorer",
-    description: "Touch the screen to hear what's there. Feel buttons, links, and headings.",
+    description: "Hear buttons, links, and headings as you touch.",
     icon: <IconTouch className="w-6 h-6 text-primary-300" />,
     path: "/touch-explorer",
   },
   {
     id: "ai-vision",
     title: "AI Vision",
-    description: "Point your camera at anything. AI describes what it sees.",
+    description: "Camera capture with spoken scene descriptions.",
     icon: <IconCamera className="w-6 h-6 text-primary-300" />,
     path: "/ai-vision",
   },
   {
     id: "reader",
     title: "Accessible Reader",
-    description: "Paste any URL. Hear the article read aloud, clean and clear.",
+    description: "Clean article reading from a pasted URL.",
     icon: <IconBook className="w-6 h-6 text-primary-300" />,
     path: "/reader",
   },
   {
     id: "voice-nav",
     title: "Voice Navigation",
-    description: "Speak commands to control everything. Hands-free operation.",
+    description: "Hands-free commands for core navigation.",
     icon: <IconMicrophone className="w-6 h-6 text-primary-300" />,
     path: "/voice-nav",
   },
   {
     id: "tactile-output",
     title: "Tactile Output Lab",
-    description: "Convert text into braille frames for a tactile hardware prototype.",
+    description: "Convert text into braille frame output.",
     icon: <IconBraille className="w-6 h-6 text-primary-300" />,
     path: "/tactile-output",
   },
   {
     id: "tactile-drill",
     title: "Tactile Drill",
-    description: "Practice letters, words, and numbers in braille. Tracks your accuracy.",
+    description: "Practice braille prompts and track accuracy.",
     icon: <IconTarget className="w-6 h-6 text-primary-300" />,
     path: "/tactile-drill",
   },
@@ -71,6 +72,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const onboardingComplete = useSettingsStore((s) => s.onboardingComplete);
   const { canInstall, install } = useInstallPrompt();
+  const [hint, setHint] = useState("");
 
   useEffect(() => {
     if (!onboardingComplete) {
@@ -78,18 +80,39 @@ export default function HomePage() {
     }
   }, [onboardingComplete, navigate]);
 
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setHint("Tip: press F6 at any time to give a voice command.");
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, []);
+
   return (
-    <div className="min-h-screen px-4 py-6 max-w-lg mx-auto">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-white">isVisible</h1>
-        <p className="text-gray-400 mt-2 text-lg">
-          Touch, hear, and navigate the visual world.
-        </p>
+    <div className="min-h-screen px-4 py-6 max-w-4xl mx-auto">
+      <header className="mb-6 border-b border-stone-700/80 pb-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-stone-50">isVisible</h1>
+            <p className="text-stone-300 mt-2 text-base">
+              Touch, hear, and navigate the visual world.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/settings")}
+            aria-label="Open settings"
+            className="shrink-0"
+          >
+            <IconSettings className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
-      <section aria-label="Modules">
-        <h2 className="sr-only">Available modules</h2>
-        <div className="space-y-4">
+      <section aria-labelledby="modules-heading">
+        <h2 id="modules-heading" className="text-sm font-semibold uppercase text-primary-200 mb-3">
+          Workspace
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
           {modules.map((mod) => (
             <Card
               key={mod.id}
@@ -104,24 +127,14 @@ export default function HomePage() {
 
       {/* Install prompt */}
       {canInstall && (
-        <section aria-label="Install app" className="mt-8">
+        <section aria-label="Install app" className="mt-6 border-t border-stone-700/80 pt-5">
           <Button onClick={install} size="lg" className="w-full">
             Install isVisible on your device
           </Button>
-          <p className="text-gray-400 text-sm text-center mt-2">
-            Add to home screen for quick access
-          </p>
         </section>
       )}
 
-      {/* Keyboard hint */}
-      <p className="mt-8 text-center text-sm text-gray-400">
-        Press F6 anywhere to speak a voice command
-      </p>
-
-      <footer className="mt-6 text-center text-sm text-gray-400">
-        <p>Built for the community. Open source.</p>
-      </footer>
+      <p role="status" aria-live="polite" className="sr-only">{hint}</p>
     </div>
   );
 }

@@ -41,51 +41,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function withNavigator<T>(fn: (nav: Navigator) => T): T {
+  const nav = (typeof navigator !== "undefined" ? navigator : {}) as Navigator;
+  return withGlobalKey(globalThis, "navigator", nav, () => fn(nav));
+}
+
 describe("detectWebSerial", () => {
   it("returns available when navigator.serial exists", () => {
-    withGlobalKey(navigator, "serial", { requestPort: async () => null }, () => {
-      const report = detectWebSerial();
-      expect(report.available).toBe(true);
-      expect(report.reason).toBe("");
+    withNavigator((nav) => {
+      withGlobalKey(nav, "serial", { requestPort: async () => null }, () => {
+        const report = detectWebSerial();
+        expect(report.available).toBe(true);
+        expect(report.reason).toBe("");
+      });
     });
   });
 
   it("returns unavailable with a Chromium hint when navigator.serial is missing", () => {
-    expect("serial" in navigator).toBe(false);
-    const report = detectWebSerial();
-    expect(report.available).toBe(false);
-    expect(report.reason).toMatch(/Web Serial/);
-    expect(report.suggestion).toMatch(/Chromium/);
-    // The suggestion should always include a non-empty next step.
-    expect(report.suggestion.length).toBeGreaterThan(0);
+    withNavigator((nav) => {
+      expect("serial" in nav).toBe(false);
+      const report = detectWebSerial();
+      expect(report.available).toBe(false);
+      expect(report.reason).toMatch(/Web Serial/);
+      expect(report.suggestion).toMatch(/Chromium/);
+      // The suggestion should always include a non-empty next step.
+      expect(report.suggestion.length).toBeGreaterThan(0);
+    });
   });
 });
 
 describe("detectWebHid", () => {
   it("returns available when navigator.hid exists", () => {
-    withGlobalKey(navigator, "hid", { requestDevice: async () => [] }, () => {
-      expect(detectWebHid().available).toBe(true);
+    withNavigator((nav) => {
+      withGlobalKey(nav, "hid", { requestDevice: async () => [] }, () => {
+        expect(detectWebHid().available).toBe(true);
+      });
     });
   });
 
   it("returns unavailable with Chromium-only advice otherwise", () => {
-    expect("hid" in navigator).toBe(false);
-    const report = detectWebHid();
-    expect(report.available).toBe(false);
-    expect(report.suggestion).toMatch(/Firefox|Safari|Chromium/);
+    withNavigator((nav) => {
+      expect("hid" in nav).toBe(false);
+      const report = detectWebHid();
+      expect(report.available).toBe(false);
+      expect(report.suggestion).toMatch(/Firefox|Safari|Chromium/);
+    });
   });
 });
 
 describe("detectClipboardRead", () => {
   it("returns available when navigator.clipboard.readText exists", () => {
-    withGlobalKey(
-      navigator,
-      "clipboard",
-      { readText: async () => "x", writeText: async () => undefined },
-      () => {
-        expect(detectClipboardRead().available).toBe(true);
-      }
-    );
+    withNavigator((nav) => {
+      withGlobalKey(
+        nav,
+        "clipboard",
+        { readText: async () => "x", writeText: async () => undefined },
+        () => {
+          expect(detectClipboardRead().available).toBe(true);
+        }
+      );
+    });
   });
 
   it("returns unavailable with paste-or-upload guidance when missing", () => {
@@ -97,14 +112,16 @@ describe("detectClipboardRead", () => {
 
 describe("detectClipboardWrite", () => {
   it("returns available when writeText exists", () => {
-    withGlobalKey(
-      navigator,
-      "clipboard",
-      { readText: async () => "x", writeText: async () => undefined },
-      () => {
-        expect(detectClipboardWrite().available).toBe(true);
-      }
-    );
+    withNavigator((nav) => {
+      withGlobalKey(
+        nav,
+        "clipboard",
+        { readText: async () => "x", writeText: async () => undefined },
+        () => {
+          expect(detectClipboardWrite().available).toBe(true);
+        }
+      );
+    });
   });
 
   it("returns unavailable with select-and-copy guidance when missing", () => {

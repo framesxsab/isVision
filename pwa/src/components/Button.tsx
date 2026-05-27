@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -8,10 +9,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white",
+    "bg-primary-600 hover:bg-primary-500 active:bg-primary-700 text-white shadow-sm shadow-cyan-950/40",
   secondary:
-    "bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white border border-gray-600",
-  ghost: "bg-transparent hover:bg-gray-800 active:bg-gray-700 text-gray-200",
+    "bg-stone-900 hover:bg-stone-800 active:bg-stone-700 text-stone-50 border border-stone-700",
+  ghost: "bg-transparent hover:bg-stone-900 active:bg-stone-800 text-stone-200",
 };
 
 const sizes = {
@@ -19,18 +20,22 @@ const sizes = {
   lg: "px-6 py-4 text-lg",
 };
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  className = "",
-  children,
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = "primary",
+    size = "md",
+    className = "",
+    children,
+    ...props
+  },
+  ref
+) {
   return (
     <button
+      ref={ref}
       className={`
         min-h-touch min-w-touch
-        rounded-xl font-semibold
+        rounded-lg font-semibold
         transition-colors duration-150
         focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950
         disabled:opacity-50 disabled:cursor-not-allowed
@@ -43,4 +48,4 @@ export function Button({
       {children}
     </button>
   );
-}
+});

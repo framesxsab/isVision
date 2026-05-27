@@ -2,14 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .pb-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @layer base {
-  /* High contrast focus indicators — critical for accessibility */
+  html {
+    background: #090a08;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      linear-gradient(180deg, rgba(32, 37, 29, 0.72) 0%, rgba(9, 10, 8, 0) 280px),
+      #090a08;
+    color: #f7f7f2;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
   *:focus-visible {
-    outline: 3px solid #818cf8;
+    outline: 3px solid #22d3ee;
     outline-offset: 2px;
   }
 
-  /* Ensure minimum touch target size */
   button,
   a,
   [role="button"],
@@ -20,7 +37,20 @@
     min-width: 48px;
   }
 
-  /* Respect user's motion preferences */
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+
+  input[type="range"] {
+    accent-color: #22d3ee;
+  }
+
+  input[type="checkbox"] {
+    accent-color: #0891b2;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -31,14 +61,10 @@
     }
   }
 
-  /* High contrast mode support */
   .high-contrast {
     --bg: #000000;
     --fg: #ffffff;
     --accent: #ffff00;
-  }
-
-  .high-contrast {
     background-color: var(--bg);
     color: var(--fg);
     min-height: 100vh;
