@@ -12,6 +12,12 @@ import {
   type Status,
 } from "@/core/utils/offlineReadiness";
 import type { LiblouisTableId } from "@/modules/tactile-output/liblouisAdapter";
+import {
+  DISCLOSURES,
+  SCOPE_CLASSES,
+  SCOPE_LABELS,
+  type Disclosure,
+} from "@/core/privacy/disclosures";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -223,7 +229,63 @@ export default function SettingsPage() {
         busy={readinessBusy}
         onRecheck={runReadinessCheck}
       />
+
+      <PrivacySection />
     </div>
+  );
+}
+
+function PrivacySection() {
+  return (
+    <section aria-labelledby="privacy-heading" className="mb-8">
+      <h2 id="privacy-heading" className="text-lg font-semibold text-white mb-2">
+        Privacy &amp; data
+      </h2>
+      <p className="text-sm text-gray-300 mb-4">
+        Every place this app touches your data. The coloured chip on each row
+        says where it goes. Tap a row to read the longer explanation.
+      </p>
+      <ul className="space-y-2" aria-label="Privacy disclosures">
+        {DISCLOSURES.map((d) => (
+          <DisclosureRow key={d.id} disclosure={d} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DisclosureRow({ disclosure }: { disclosure: Disclosure }) {
+  const chipClasses = SCOPE_CLASSES[disclosure.scope];
+  const chipLabel = SCOPE_LABELS[disclosure.scope];
+  return (
+    <li className="bg-gray-900 border border-gray-700 rounded-lg">
+      <details className="group">
+        <summary
+          className="min-h-touch px-3 py-3 cursor-pointer flex items-start justify-between gap-3 list-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-lg"
+          aria-describedby={`disclosure-${disclosure.id}-summary`}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-white font-medium">{disclosure.title}</span>
+              <span
+                className={`text-xs border rounded-full px-2 py-0.5 whitespace-nowrap ${chipClasses}`}
+              >
+                {chipLabel}
+              </span>
+            </div>
+            <p
+              id={`disclosure-${disclosure.id}-summary`}
+              className="text-sm text-gray-300 mt-1"
+            >
+              {disclosure.summary}
+            </p>
+          </div>
+        </summary>
+        <p className="px-3 pb-3 text-sm text-gray-300 leading-relaxed">
+          {disclosure.detail}
+        </p>
+      </details>
+    </li>
   );
 }
 
