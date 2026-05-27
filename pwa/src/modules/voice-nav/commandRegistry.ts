@@ -147,38 +147,95 @@ export const commands: Command[] = [
   },
 ];
 
+// Filler words to strip before matching. "please open the camera now" should
+// match "open camera" just as well as the literal phrase. We do this after
+// lowercasing and punctuation stripping, then collapse multiple spaces.
+const FILLER_WORDS = new Set([
+  "please", "the", "a", "an", "to", "now", "ok", "okay", "hey", "um", "uh",
+  "could", "would", "can", "you", "for", "me", "i", "want", "need", "let",
+  "us", "lets",
+]);
+
+/** Normalize a transcript for matching: lowercase, strip punctuation/fillers. */
+export function normalizeTranscript(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[.,!?;:'"()\-_/]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word && !FILLER_WORDS.has(word))
+    .join(" ")
+    .trim();
+}
+
+// Precomputed list of (pattern, command) pairs sorted longest-first so the
+// more specific phrase wins when a transcript contains multiple shorter
+// patterns (e.g. "go home" beats "home", "previous paragraph" beats "previous").
+const patternIndex = commands
+  .flatMap((cmd) => cmd.patterns.map((pattern) => ({ cmd, pattern })))
+  .sort((a, b) => b.pattern.length - a.pattern.length);
+
 /**
- * Find the best matching command for a transcript.
- * Uses case-insensitive substring matching, then Levenshtein distance.
+ * Find the best matching command across all browser-returned alternatives.
+ * Tries each alternative, picks the highest-confidence hit overall.
+ */
+export function matchCommandWithAlternatives(
+  alternatives: string[]
+): { command: Command; confidence: number; matchedAlternative: string } | null {
+  let best: { command: Command; confidence: number; matchedAlternative: string } | null = null;
+
+  for (const alt of alternatives) {
+    const result = matchCommand(alt);
+    if (result && (!best || result.confidence > best.confidence)) {
+      best = { ...result, matchedAlternative: alt };
+      // A confident exact match in any alternative is good enough — stop.
+      if (result.confidence >= 1.0) return best;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Find the best matching command for a single transcript.
+ * Pipeline: normalize → longest-pattern exact/substring → Levenshtein fuzzy.
  */
 export function matchCommand(
   transcript: string
 ): { command: Command; confidence: number } | null {
-  const input = transcript.toLowerCase().trim();
+  const input = normalizeTranscript(transcript);
+  if (!input) return null;
 
-  // Exact/substring match
-  for (const cmd of commands) {
-    for (const pattern of cmd.patterns) {
-      if (input === pattern || input.includes(pattern)) {
-        return { command: cmd, confidence: 1.0 };
-      }
+  // Exact / substring match against the longest-first index. Whole-word
+  // matching avoids false positives like "stop" matching inside "stoplight".
+  for (const { cmd, pattern } of patternIndex) {
+    if (input === pattern) {
+      return { command: cmd, confidence: 1.0 };
+    }
+    // Word-boundary check so "back" doesn't match inside "background".
+    const boundaryRegex = new RegExp(
+      `(^|\\s)${escapeRegex(pattern)}($|\\s)`
+    );
+    if (boundaryRegex.test(input)) {
+      return { command: cmd, confidence: 0.95 };
     }
   }
 
-  // Fuzzy match using Levenshtein distance
+  // Fuzzy match using Levenshtein distance — threshold scales with length
+  // so short commands (3-4 chars) aren't matched against unrelated noise.
   let bestMatch: Command | null = null;
   let bestScore = 0;
 
-  for (const cmd of commands) {
-    for (const pattern of cmd.patterns) {
-      const distance = levenshtein(input, pattern);
-      const maxLen = Math.max(input.length, pattern.length);
-      const similarity = maxLen > 0 ? 1 - distance / maxLen : 0;
+  for (const { cmd, pattern } of patternIndex) {
+    const distance = levenshtein(input, pattern);
+    const maxLen = Math.max(input.length, pattern.length);
+    const similarity = maxLen > 0 ? 1 - distance / maxLen : 0;
+    // Short patterns need a higher bar so a 1-edit mismatch on a 4-char word
+    // doesn't sneak through (e.g. "soup" → "stop").
+    const threshold = pattern.length <= 4 ? 0.8 : 0.65;
 
-      if (similarity > bestScore && similarity > 0.6) {
-        bestScore = similarity;
-        bestMatch = cmd;
-      }
+    if (similarity > bestScore && similarity >= threshold) {
+      bestScore = similarity;
+      bestMatch = cmd;
     }
   }
 
@@ -187,6 +244,10 @@ export function matchCommand(
   }
 
   return null;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function levenshtein(a: string, b: string): number {

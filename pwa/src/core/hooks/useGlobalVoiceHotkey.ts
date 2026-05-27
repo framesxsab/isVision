@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
-import { matchCommand } from "@/modules/voice-nav/commandRegistry";
+import { matchCommandWithAlternatives } from "@/modules/voice-nav/commandRegistry";
 
 /**
  * Global hotkey (F6) to activate voice commands from ANY page.
@@ -23,10 +23,10 @@ export function useGlobalVoiceHotkey() {
       speechEngine.interrupt("Listening.");
 
       try {
-        const transcript = await speechRecognition.listen();
-        const match = matchCommand(transcript);
+        const result = await speechRecognition.listenWithAlternatives();
+        const match = matchCommandWithAlternatives(result.alternatives);
 
-        if (match && match.confidence >= 0.6) {
+        if (match && match.confidence >= 0.65) {
           speechEngine.interrupt(match.command.description);
 
           // Handle navigation commands directly
@@ -53,7 +53,7 @@ export function useGlobalVoiceHotkey() {
             }
         } else {
           speechEngine.interrupt(
-            `I didn't understand "${transcript}". Press F6 and try again.`
+            `I didn't understand "${result.transcript}". Press F6 and try again.`
           );
         }
       } catch {

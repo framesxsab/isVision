@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
-import { commands, matchCommand } from "./commandRegistry";
+import { commands, matchCommandWithAlternatives } from "./commandRegistry";
 import { Button } from "@/components/Button";
 import { IconArrowLeft, IconMicrophone, IconEar } from "@/components/Icons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
@@ -109,20 +109,22 @@ export default function VoiceNavPage() {
     announce("Listening");
 
     try {
-      const transcript = await speechRecognition.listen();
+      const result = await speechRecognition.listenWithAlternatives();
       setIsListening(false);
-      setLastTranscript(transcript);
-
-      const match = matchCommand(transcript);
+      // Show the alternative that actually matched, not the browser's top
+      // guess — otherwise the user sees "you said X" but heard us run Y.
+      const match = matchCommandWithAlternatives(result.alternatives);
+      const displayTranscript = match?.matchedAlternative ?? result.transcript;
+      setLastTranscript(displayTranscript);
 
       const entry: HistoryEntry = {
-        transcript,
+        transcript: displayTranscript,
         command: match?.command.name ?? null,
         timestamp: Date.now(),
       };
       setHistory((prev) => [entry, ...prev].slice(0, 20));
 
-      if (match && match.confidence >= 0.6) {
+      if (match && match.confidence >= 0.65) {
         earcons.success();
         announce(`${match.command.description}`);
         speechEngine.interrupt(`${match.command.description}`);
@@ -130,7 +132,9 @@ export default function VoiceNavPage() {
         setTimeout(() => executeAction(match.command.action), 500);
       } else {
         earcons.error();
-        speechEngine.interrupt(`I didn't understand "${transcript}". Say help for available commands.`);
+        speechEngine.interrupt(
+          `I didn't understand "${result.transcript}". Say help for available commands.`
+        );
       }
     } catch (err) {
       setIsListening(false);
