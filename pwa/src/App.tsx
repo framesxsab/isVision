@@ -15,6 +15,7 @@ import { useDarkModeSync } from "@/core/hooks/useDarkModeSync";
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
+const TroubleshootPage = lazy(() => import("@/pages/TroubleshootPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const TouchExplorerPage = lazy(() => import("@/modules/touch-explorer/TouchExplorerPage"));
 const VisionAssistantPage = lazy(() => import("@/modules/ai-vision/VisionAssistantPage"));
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/troubleshoot" element={<TroubleshootPage />} />
               <Route
                 path="/touch-explorer"
                 element={

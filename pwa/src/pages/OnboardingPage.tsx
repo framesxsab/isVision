@@ -1,6 +1,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { speechEngine } from "@/core/audio/SpeechEngine";
@@ -71,18 +71,30 @@ function BrandMark() {
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const isRestart = params.get("restart") === "1";
   const [step, setStep] = useState(0);
-  const [audioStarted, setAudioStarted] = useState(false);
+  // Skip the audio-gate splash on restart — returning users have already
+  // tapped past it once and shouldn't be forced through it again.
+  const [audioStarted, setAudioStarted] = useState(isRestart);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [cameraGranted, setCameraGranted] = useState<boolean | null>(null);
-  const [micGranted, setMicGranted] = useState<boolean | null>(null);
+  const setupStatus = useSettingsStore((s) => s.setupStatus);
+  const [cameraGranted, setCameraGranted] = useState<boolean | null>(
+    setupStatus.camera === "unknown" ? null : setupStatus.camera === "granted"
+  );
+  const [micGranted, setMicGranted] = useState<boolean | null>(
+    setupStatus.microphone === "unknown" ? null : setupStatus.microphone === "granted"
+  );
   const [liveMessage, setLiveMessage] = useState(
-    "Setup loaded. Start spoken setup is focused."
+    isRestart
+      ? "Setup re-opened. You can change permissions and voice here."
+      : "Setup loaded. Start spoken setup is focused."
   );
   const firstActionRef = useRef<HTMLButtonElement | null>(null);
   const completeOnboarding = useSettingsStore((s) => s.completeOnboarding);
   const setVoiceURI = useSettingsStore((s) => s.setVoiceURI);
   const voiceURI = useSettingsStore((s) => s.voiceURI);
+  const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
 
   const announce = useCallback((message: string) => {
     setLiveMessage(message);
@@ -154,9 +166,11 @@ export default function OnboardingPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach((t) => t.stop());
       setCameraGranted(true);
+      setSetupStatus({ camera: "granted" });
       announce("Camera access granted.");
     } catch {
       setCameraGranted(false);
+      setSetupStatus({ camera: "denied" });
       announce("Camera access was not granted. AI Vision can ask again later.");
     }
   };
@@ -169,9 +183,11 @@ export default function OnboardingPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop());
       setMicGranted(true);
+      setSetupStatus({ microphone: "granted" });
       announce("Microphone access granted.");
     } catch {
       setMicGranted(false);
+      setSetupStatus({ microphone: "denied" });
       announce("Microphone access was not granted. Voice Navigation can ask again later.");
     }
   };
@@ -188,12 +204,25 @@ export default function OnboardingPage() {
 
     if (isLast) {
       announce("Setup complete. Opening the home screen.");
+      // Treat reaching the end as voice-confirmation — either the user explicitly
+      // picked a voice or accepted system default, both are intentional choices.
+      setSetupStatus({ voiceConfirmed: true });
       completeOnboarding();
       navigate("/");
     } else {
       setStep((s) => s + 1);
     }
   };
+
+  const finishLater = useCallback(() => {
+    // "Finish later" — let the user out without forcing remaining steps,
+    // but keep the partial setupStatus so Settings + module pages can
+    // remind them what's still pending.
+    speechEngine.stop();
+    announce("Setup paused. You can finish it any time from Settings.");
+    completeOnboarding();
+    navigate("/");
+  }, [announce, completeOnboarding, navigate]);
 
   if (!audioStarted) {
     return (
@@ -330,6 +359,7 @@ export default function OnboardingPage() {
               const uri = e.target.value || null;
               setVoiceURI(uri);
               speechEngine.setVoice(uri);
+              setSetupStatus({ voiceConfirmed: true });
               announce("This is how I sound.");
             }}
             className="w-full min-h-touch bg-surface-2 text-stone-50 border border-surface-border rounded-xl px-4 py-3 focus:border-primary-400/60 transition-colors"
@@ -374,6 +404,15 @@ export default function OnboardingPage() {
         <Button onClick={repeatCurrentStep} variant="secondary" className="w-full">
           Repeat guidance
         </Button>
+        {isPermissionsStep && (
+          <button
+            type="button"
+            onClick={finishLater}
+            className="w-full min-h-touch text-sm text-stone-400 hover:text-stone-200 transition-colors py-2 rounded focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
+          >
+            Finish later
+          </button>
+        )}
       </div>
     </div>
   );

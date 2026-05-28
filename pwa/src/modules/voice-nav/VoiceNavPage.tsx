@@ -20,14 +20,24 @@ interface HistoryEntry {
   timestamp: number;
 }
 
+// Match SpeechRecognition.ts not-allowed mapping so the inline CTA shows
+// for the right error class only.
+function isMicPermissionError(message: string | null): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return lower.includes("microphone") && (lower.includes("denied") || lower.includes("permission"));
+}
+
 export default function VoiceNavPage() {
   const navigate = useNavigate();
   const announce = useAnnounce();
   const [isListening, setIsListening] = useState(false);
   const [lastTranscript, setLastTranscript] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const setSpeechRate = useSettingsStore((s) => s.setSpeechRate);
   const speechRate = useSettingsStore((s) => s.speechRate);
+  const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
 
   useEffect(() => {
     announce("Voice Navigation is ready. Press and hold the button to speak a command.");
@@ -35,47 +45,55 @@ export default function VoiceNavPage() {
   }, [announce]);
 
   const executeAction = useCallback(
-    (action: string) => {
+    (action: string, options?: { silent?: boolean }) => {
+      // `silent` mode is used after an echo-back — the user already heard
+      // "I heard X, opening Y", so we shouldn't speak the same thing again.
+      // Navigation/state-change side effects still run.
+      const silent = options?.silent === true;
+      const say = (msg: string) => {
+        if (!silent) speechEngine.interrupt(msg);
+      };
       switch (action) {
         case "help": {
           const helpText = commands
             .filter((c) => c.module === "global")
             .map((c) => `${c.patterns[0]}: ${c.description}`)
             .join(". ");
+          // Always speak the help text — that IS the action.
           speechEngine.interrupt(`Available commands. ${helpText}`);
           break;
         }
         case "navigate_home":
           navigate("/");
-          speechEngine.interrupt("Going home.");
+          say("Going home.");
           break;
         case "navigate_back":
           navigate(-1);
-          speechEngine.interrupt("Going back.");
+          say("Going back.");
           break;
         case "navigate_settings":
           navigate("/settings");
-          speechEngine.interrupt("Opening settings.");
+          say("Opening settings.");
           break;
         case "navigate_touch_explorer":
           navigate("/touch-explorer");
-          speechEngine.interrupt("Opening Touch Explorer.");
+          say("Opening Touch Explorer.");
           break;
         case "navigate_ai_vision":
           navigate("/ai-vision");
-          speechEngine.interrupt("Opening AI Vision.");
+          say("Opening AI Vision.");
           break;
         case "navigate_reader":
           navigate("/reader");
-          speechEngine.interrupt("Opening Accessible Reader.");
+          say("Opening Accessible Reader.");
           break;
         case "navigate_tactile_output":
           navigate("/tactile-output");
-          speechEngine.interrupt("Opening Tactile Output Lab.");
+          say("Opening Tactile Output Lab.");
           break;
         case "navigate_tactile_drill":
           navigate("/tactile-drill");
-          speechEngine.interrupt("Opening Tactile Drill.");
+          say("Opening Tactile Drill.");
           break;
         case "stop_speech":
           speechEngine.stop();
@@ -83,6 +101,8 @@ export default function VoiceNavPage() {
         case "speed_up":
           setSpeechRate(Math.min(3, speechRate + 0.2));
           speechEngine.setRate(speechRate + 0.2);
+          // Speed changes always get a confirmation — there's no visual
+          // cue and the echo wouldn't include the new value.
           speechEngine.interrupt(`Speed ${(speechRate + 0.2).toFixed(1)}x`);
           break;
         case "slow_down":
@@ -99,11 +119,14 @@ export default function VoiceNavPage() {
 
   const handleListen = useCallback(async () => {
     if (!speechRecognition.isSupported) {
-      speechEngine.interrupt("Voice recognition is not supported in this browser. Try Chrome on Android.");
+      const msg = "Voice recognition is not supported in this browser. Try Chrome on Android.";
+      setErrorMessage(msg);
+      speechEngine.interrupt(msg);
       return;
     }
 
     setIsListening(true);
+    setErrorMessage(null);
     speechEngine.stop();
     earcons.activate();
     announce("Listening");
@@ -126,10 +149,18 @@ export default function VoiceNavPage() {
 
       if (match && match.confidence >= 0.65) {
         earcons.success();
-        announce(`${match.command.description}`);
-        speechEngine.interrupt(`${match.command.description}`);
-        // Small delay so user hears confirmation before navigation
-        setTimeout(() => executeAction(match.command.action), 500);
+        // Echo back what we heard *before* acting. This is the trust loop:
+        // a silent misfire used to feel like the app was broken; now the
+        // user always knows the system understood them, and what it's about
+        // to do, before anything happens.
+        const echo = `I heard "${result.transcript}". ${match.command.description}.`;
+        announce(echo);
+        speechEngine.interrupt(echo);
+        // Wait long enough for most of the echo to play, then run the
+        // action silently — the destination page typically speaks its own
+        // greeting on mount, so suppressing the duplicate keeps the audio
+        // experience clean.
+        setTimeout(() => executeAction(match.command.action, { silent: true }), 1400);
       } else {
         earcons.error();
         speechEngine.interrupt(
@@ -139,9 +170,19 @@ export default function VoiceNavPage() {
     } catch (err) {
       setIsListening(false);
       const msg = err instanceof Error ? err.message : "Could not recognize speech.";
+      setErrorMessage(msg);
+      if (isMicPermissionError(msg)) {
+        setSetupStatus({ microphone: "denied" });
+      }
       speechEngine.interrupt(msg);
     }
-  }, [announce, executeAction]);
+  }, [announce, executeAction, setSetupStatus]);
+
+  const openSetup = useCallback(() => {
+    navigate("/onboarding?restart=1");
+  }, [navigate]);
+
+  const dismissError = useCallback(() => setErrorMessage(null), []);
 
   // Group commands by module
   const groupedCommands = commands.reduce<Record<string, typeof commands>>(
@@ -172,6 +213,32 @@ export default function VoiceNavPage() {
           <div className="w-20" />
         </div>
       </header>
+
+      {/* Inline blocked / unsupported state with actionable CTAs */}
+      {errorMessage && (
+        <div
+          role="alert"
+          className="mx-auto mt-4 max-w-lg w-[calc(100%-2rem)] rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-4"
+        >
+          <p className="text-rose-200 text-sm leading-relaxed mb-3">{errorMessage}</p>
+          <div className="flex flex-wrap gap-2">
+            {isMicPermissionError(errorMessage) ? (
+              <>
+                <Button onClick={handleListen} variant="secondary">
+                  Try again
+                </Button>
+                <Button onClick={openSetup} variant="secondary">
+                  Run setup again
+                </Button>
+              </>
+            ) : (
+              <Button onClick={dismissError} variant="secondary">
+                Dismiss
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Push-to-talk area */}
       <div className="flex flex-col items-center justify-center py-8 px-4">

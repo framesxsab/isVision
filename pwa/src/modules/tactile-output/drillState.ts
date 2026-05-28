@@ -198,3 +198,89 @@ export function spokenAnswer(prompt: DrillPrompt): string {
 function normalizeGuess(value: string): string {
   return value.trim().toLowerCase();
 }
+
+// Per-answer accuracy aggregation. The map is keyed by the answer string
+// so callers can sort by "weakest" (lowest accuracy) and drill those first.
+// Kept in drillState (not the component) so it stays unit-testable.
+export interface AnswerStats {
+  answer: string;
+  kind: string;
+  attempts: number;
+  correct: number;
+  // Most recent attempt timestamp — used to break ties and keep ordering
+  // deterministic when several answers have the same accuracy.
+  lastAt: number;
+}
+
+export function perAnswerStats(history: readonly DrillAttempt[]): AnswerStats[] {
+  const byKey = new Map<string, AnswerStats>();
+  for (const a of history) {
+    const existing = byKey.get(a.answer);
+    if (existing) {
+      existing.attempts += 1;
+      existing.correct += a.correct ? 1 : 0;
+      if (a.at > existing.lastAt) existing.lastAt = a.at;
+    } else {
+      byKey.set(a.answer, {
+        answer: a.answer,
+        kind: a.kind,
+        attempts: 1,
+        correct: a.correct ? 1 : 0,
+        lastAt: a.at,
+      });
+    }
+  }
+  return [...byKey.values()];
+}
+
+// Surface the answers the learner has actually gotten wrong, sorted by
+// "most pain first": lowest accuracy, then most recent. Used to seed the
+// mistakes-mode pool so a quick session lands on real weak spots, not
+// answers the learner has already mastered.
+export function mistakePool(history: readonly DrillAttempt[]): AnswerStats[] {
+  return perAnswerStats(history)
+    .filter((s) => s.correct < s.attempts)
+    .sort((a, b) => {
+      const accA = a.correct / a.attempts;
+      const accB = b.correct / b.attempts;
+      if (accA !== accB) return accA - accB;
+      return b.lastAt - a.lastAt;
+    });
+}
+
+// Pick a prompt from the mistake pool. Returns null when the pool is empty
+// so the caller can fall back to the regular generator instead of silently
+// repeating the same answer.
+export function nextMistakePrompt(
+  history: readonly DrillAttempt[],
+  rng: () => number = Math.random
+): DrillPrompt | null {
+  const pool = mistakePool(history);
+  if (pool.length === 0) return null;
+  const choice = pick(pool, rng);
+  return { answer: choice.answer, kind: choice.kind };
+}
+
+// Extended CSV: same per-attempt rows, then a blank line, then a per-answer
+// summary block. A spreadsheet importer treats the second block as a new
+// table; for a quick `cat` of the file the learner sees both views.
+export function historyToCsvWithSummary(history: readonly DrillAttempt[]): string {
+  const head = historyToCsv(history);
+  const stats = perAnswerStats(history).sort((a, b) => {
+    const accA = a.correct / a.attempts;
+    const accB = b.correct / b.attempts;
+    return accA - accB;
+  });
+  if (stats.length === 0) return head;
+  const summaryHeader = "answer,kind,attempts,correct,accuracy_percent";
+  const summaryRows = stats.map((s) =>
+    [
+      csvEscape(s.answer),
+      csvEscape(s.kind),
+      String(s.attempts),
+      String(s.correct),
+      String(Math.round((s.correct / s.attempts) * 100)),
+    ].join(",")
+  );
+  return [head, "", summaryHeader, ...summaryRows].join("\n");
+}

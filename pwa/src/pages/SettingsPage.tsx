@@ -73,6 +73,14 @@ function LockIcon() {
     </svg>
   );
 }
+function SetupIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    </svg>
+  );
+}
 
 function Panel({
   id,
@@ -436,6 +444,12 @@ export default function SettingsPage() {
         </div>
       </Panel>
 
+      <SetupPanel
+        setupStatus={settings.setupStatus}
+        onRestart={() => navigate("/onboarding?restart=1")}
+        onTroubleshoot={() => navigate("/troubleshoot")}
+      />
+
       <OfflineReadinessPanel
         report={readiness}
         busy={readinessBusy}
@@ -445,17 +459,135 @@ export default function SettingsPage() {
         precacheMessage={precacheMessage}
       />
 
-      <PrivacyPanel onClearLocalData={clearLocalData} clearMessage={clearMessage} />
+      <PrivacyPanel
+        onClearLocalData={clearLocalData}
+        clearMessage={clearMessage}
+        visionRetainHistory={settings.visionRetainHistory}
+        onSetVisionRetainHistory={settings.setVisionRetainHistory}
+      />
     </div>
+  );
+}
+
+function SetupPanel({
+  setupStatus,
+  onRestart,
+  onTroubleshoot,
+}: {
+  setupStatus: import("@/core/store/settingsStore").SetupStatus;
+  onRestart: () => void;
+  onTroubleshoot: () => void;
+}) {
+  const rows = [
+    {
+      label: "Camera access",
+      state: setupStatus.camera,
+      hint: "Powers AI Vision scene descriptions.",
+    },
+    {
+      label: "Microphone access",
+      state: setupStatus.microphone,
+      hint: "Powers Voice Navigation and the F6 hotkey.",
+    },
+    {
+      label: "Voice selected",
+      state: (setupStatus.voiceConfirmed ? "granted" : "unknown") as
+        | "granted"
+        | "unknown"
+        | "denied",
+      hint: "Confirm the speech voice or accept system default.",
+    },
+  ];
+  const allReady =
+    setupStatus.camera === "granted" &&
+    setupStatus.microphone === "granted" &&
+    setupStatus.voiceConfirmed;
+  return (
+    <Panel
+      id="setup"
+      title="Setup"
+      description={
+        allReady
+          ? "Everything's configured. Run setup again any time to revisit."
+          : "Some setup items aren't complete. You can finish them any time."
+      }
+      icon={<span className="text-indigo-300"><SetupIcon /></span>}
+      accent="bg-indigo-500/10 border-indigo-400/30"
+    >
+      <ul className="space-y-2 mb-4" aria-label="Setup status">
+        {rows.map((row) => (
+          <SetupRow key={row.label} {...row} />
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          onClick={onRestart}
+          aria-label="Re-open setup to grant permissions or change voice"
+          data-testid="restart-setup"
+          className="w-full sm:w-auto"
+        >
+          Run setup again
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={onTroubleshoot}
+          aria-label="Open the troubleshoot page to see capability details for this device"
+          data-testid="open-troubleshoot"
+          className="w-full sm:w-auto"
+        >
+          Troubleshoot
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
+function SetupRow({
+  label,
+  state,
+  hint,
+}: {
+  label: string;
+  state: "granted" | "denied" | "unknown";
+  hint: string;
+}) {
+  const styles =
+    state === "granted"
+      ? { dot: "bg-emerald-400 text-emerald-400", copy: "Ready", copyClass: "text-emerald-300" }
+      : state === "denied"
+        ? { dot: "bg-rose-400 text-rose-400", copy: "Blocked", copyClass: "text-rose-300" }
+        : { dot: "bg-stone-500 text-stone-500", copy: "Not set", copyClass: "text-stone-400" };
+  return (
+    <li
+      className="flex items-start gap-3 surface-card border border-surface-border rounded-xl p-3"
+      aria-label={`${label}: ${styles.copy}. ${hint}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`mt-1.5 inline-block w-2.5 h-2.5 rounded-full ${styles.dot} shadow-[0_0_8px_currentColor]`}
+      />
+      <div className="flex-1 min-w-0" aria-hidden="true">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <span className="text-stone-50 font-medium">{label}</span>
+          <span className={`text-sm ${styles.copyClass}`}>{styles.copy}</span>
+        </div>
+        <p className="text-xs text-stone-500 mt-1 leading-relaxed">{hint}</p>
+      </div>
+    </li>
   );
 }
 
 function PrivacyPanel({
   onClearLocalData,
   clearMessage,
+  visionRetainHistory,
+  onSetVisionRetainHistory,
 }: {
   onClearLocalData: () => void;
   clearMessage: string;
+  visionRetainHistory: boolean;
+  onSetVisionRetainHistory: (enabled: boolean) => void;
 }) {
   return (
     <Panel
@@ -465,6 +597,14 @@ function PrivacyPanel({
       icon={<span className="text-rose-300"><LockIcon /></span>}
       accent="bg-rose-500/10 border-rose-400/30"
     >
+      <div className="mb-4 pb-4 border-b border-surface-border">
+        <ToggleRow
+          checked={visionRetainHistory}
+          onChange={onSetVisionRetainHistory}
+          label="Keep AI Vision history this session"
+          hint="When off, only the most recent description is kept in memory. History never leaves your device."
+        />
+      </div>
       <ul className="space-y-2" aria-label="Privacy disclosures">
         {DISCLOSURES.map((d) => (
           <DisclosureRow key={d.id} disclosure={d} />

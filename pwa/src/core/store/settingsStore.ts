@@ -1,6 +1,30 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type PermissionState = "unknown" | "granted" | "denied";
+
+export interface SetupStatus {
+  camera: PermissionState;
+  microphone: PermissionState;
+  voiceConfirmed: boolean;
+}
+
+const DEFAULT_SETUP_STATUS: SetupStatus = {
+  camera: "unknown",
+  microphone: "unknown",
+  voiceConfirmed: false,
+};
+
+// LastSession is the resume-on-launch breadcrumb. It is intentionally
+// opaque — only the writing module knows the payload shape — so other
+// modules can opt in over time without store churn.
+export interface LastSession {
+  route: string;
+  // Free-form per-module payload (Reader: { url, title, chunkIndex, total })
+  payload: Record<string, unknown>;
+  updatedAt: number;
+}
+
 interface SettingsState {
   // Speech
   speechRate: number;
@@ -16,8 +40,16 @@ interface SettingsState {
   hapticEnabled: boolean;
   spatialAudioEnabled: boolean;
 
+  // Privacy
+  // When false, AI Vision keeps only the most recent description in memory.
+  // When true (default), the last 10 descriptions are retained within the
+  // current page session — never persisted to disk regardless of this flag.
+  visionRetainHistory: boolean;
+
   // App state
   onboardingComplete: boolean;
+  setupStatus: SetupStatus;
+  lastSession: LastSession | null;
 
   // Actions
   setSpeechRate: (rate: number) => void;
@@ -28,7 +60,11 @@ interface SettingsState {
   setFontSize: (size: number) => void;
   setHapticEnabled: (enabled: boolean) => void;
   setSpatialAudioEnabled: (enabled: boolean) => void;
+  setVisionRetainHistory: (enabled: boolean) => void;
   completeOnboarding: () => void;
+  setSetupStatus: (patch: Partial<SetupStatus>) => void;
+  resetSetupStatus: () => void;
+  setLastSession: (session: LastSession | null) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -45,7 +81,11 @@ export const useSettingsStore = create<SettingsState>()(
       hapticEnabled: true,
       spatialAudioEnabled: true,
 
+      visionRetainHistory: true,
+
       onboardingComplete: false,
+      setupStatus: { ...DEFAULT_SETUP_STATUS },
+      lastSession: null,
 
       setSpeechRate: (rate) => set({ speechRate: rate }),
       setSpeechPitch: (pitch) => set({ speechPitch: pitch }),
@@ -55,10 +95,34 @@ export const useSettingsStore = create<SettingsState>()(
       setFontSize: (size) => set({ fontSize: Math.max(18, Math.min(32, size)) }),
       setHapticEnabled: (enabled) => set({ hapticEnabled: enabled }),
       setSpatialAudioEnabled: (enabled) => set({ spatialAudioEnabled: enabled }),
+      setVisionRetainHistory: (enabled) => set({ visionRetainHistory: enabled }),
       completeOnboarding: () => set({ onboardingComplete: true }),
+      setSetupStatus: (patch) =>
+        set((state) => ({ setupStatus: { ...state.setupStatus, ...patch } })),
+      resetSetupStatus: () => set({ setupStatus: { ...DEFAULT_SETUP_STATUS } }),
+      setLastSession: (session) => set({ lastSession: session }),
     }),
     {
       name: "isvisible-settings",
+      version: 3,
+      // v0 → v1: add setupStatus default.
+      // v1 → v2: add visionRetainHistory default.
+      // v2 → v3: add lastSession default (null).
+      // Keep each step tolerant — any missing field just gets the default appended.
+      migrate: (persisted, version) => {
+        const base = (persisted ?? {}) as Partial<SettingsState>;
+        const next: Partial<SettingsState> = { ...base };
+        if (version < 1 || !next.setupStatus) {
+          next.setupStatus = { ...DEFAULT_SETUP_STATUS };
+        }
+        if (version < 2 || typeof next.visionRetainHistory !== "boolean") {
+          next.visionRetainHistory = true;
+        }
+        if (version < 3 || next.lastSession === undefined) {
+          next.lastSession = null;
+        }
+        return next as SettingsState;
+      },
     }
   )
 );

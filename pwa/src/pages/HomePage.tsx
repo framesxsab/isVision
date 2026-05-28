@@ -85,6 +85,8 @@ const modules: ModuleInfo[] = [
 export default function HomePage() {
   const navigate = useNavigate();
   const onboardingComplete = useSettingsStore((s) => s.onboardingComplete);
+  const lastSession = useSettingsStore((s) => s.lastSession);
+  const setLastSession = useSettingsStore((s) => s.setLastSession);
   const { canInstall, install } = useInstallPrompt();
   const [hint, setHint] = useState("");
 
@@ -138,6 +140,30 @@ export default function HomePage() {
           </button>
         </div>
       </header>
+
+      {/* Resume card — if we have a saved Reader session, surface it
+          above the workspace so the user lands one tap from where they
+          left off. Skipping when payload looks stale (no URL / total 0)
+          rather than rendering a non-functional card. */}
+      {lastSession?.route === "/reader" && typeof lastSession.payload.url === "string" && (
+        <ResumeCard
+          title={String(lastSession.payload.title ?? "Article")}
+          url={String(lastSession.payload.url)}
+          chunkIndex={Number(lastSession.payload.chunkIndex) || 0}
+          total={Number(lastSession.payload.total) || 0}
+          onResume={() => {
+            navigate("/reader", {
+              state: {
+                resume: {
+                  url: String(lastSession.payload.url),
+                  chunkIndex: Number(lastSession.payload.chunkIndex) || 0,
+                },
+              },
+            });
+          }}
+          onDismiss={() => setLastSession(null)}
+        />
+      )}
 
       {/* Hint card — quick affordance for F6 voice hotkey */}
       <div
@@ -208,5 +234,70 @@ export default function HomePage() {
 
       <p role="status" aria-live="polite" className="sr-only">{hint}</p>
     </div>
+  );
+}
+
+function ResumeCard({
+  title,
+  url,
+  chunkIndex,
+  total,
+  onResume,
+  onDismiss,
+}: {
+  title: string;
+  url: string;
+  chunkIndex: number;
+  total: number;
+  onResume: () => void;
+  onDismiss: () => void;
+}) {
+  // Build a one-line resume hint. We deliberately don't speak this on
+  // mount — the welcome audio + the F6 hint already compete for attention.
+  // A visible card + clear button label is enough; screen readers will
+  // pick up the aria-label on focus.
+  const position =
+    total > 0
+      ? `Paragraph ${chunkIndex + 1} of ${total}`
+      : `Paragraph ${chunkIndex + 1}`;
+  let domain = url;
+  try {
+    domain = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    // Keep original string if URL parsing fails — better than empty.
+  }
+  return (
+    <section
+      aria-label={`Resume reading ${title}, ${position}`}
+      className="mb-6 sm:mb-7 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-400/30 backdrop-blur"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-amber-300 mb-1">
+            Pick up where you left off
+          </p>
+          <h3 className="text-base sm:text-lg font-semibold text-stone-50 truncate">
+            {title}
+          </h3>
+          <p className="text-xs text-stone-400 mt-0.5 truncate">
+            {domain} · {position}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss resume card"
+          className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full text-stone-400 hover:text-stone-100 hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <Button onClick={onResume} className="w-full sm:w-auto">
+        Resume reading
+      </Button>
+    </section>
   );
 }

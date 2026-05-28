@@ -10,6 +10,7 @@ import { describeImage } from "@/core/ai/NvidiaClient";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
 import { useAnnounce } from "@/core/a11y/AriaLive";
+import { useSettingsStore } from "@/core/store/settingsStore";
 
 type VisionState = "idle" | "capturing" | "analyzing" | "speaking";
 
@@ -37,6 +38,12 @@ export function useVisionAssistant() {
   const [error, setError] = useState<string | null>(null);
   const announce = useAnnounce();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const retainHistory = useSettingsStore((s) => s.visionRetainHistory);
+  // Hold the current retain setting in a ref so capture handlers — which are
+  // captured at hook-init time — always see the latest user choice without
+  // triggering a useCallback rebuild.
+  const retainHistoryRef = useRef(retainHistory);
+  retainHistoryRef.current = retainHistory;
 
   const startCamera = useCallback(async (video: HTMLVideoElement) => {
     videoRef.current = video;
@@ -172,7 +179,9 @@ export function useVisionAssistant() {
           description: result,
           timestamp: Date.now(),
         };
-        setHistory((prev) => [entry, ...prev].slice(0, 10));
+        setHistory((prev) =>
+          [entry, ...prev].slice(0, retainHistoryRef.current ? 10 : 1)
+        );
 
         setState("speaking");
         earcons.success();
@@ -218,7 +227,9 @@ export function useVisionAssistant() {
           description: result,
           timestamp: Date.now(),
         };
-        setHistory((prev) => [entry, ...prev].slice(0, 10));
+        setHistory((prev) =>
+          [entry, ...prev].slice(0, retainHistoryRef.current ? 10 : 1)
+        );
 
         setState("speaking");
         speechEngine.interrupt(result);
@@ -244,6 +255,14 @@ export function useVisionAssistant() {
     }
   }, [description]);
 
+  const clearHistory = useCallback(() => {
+    setDescription("");
+    setHistory([]);
+    setError(null);
+    announce("Vision history cleared");
+    speechEngine.interrupt("Vision history cleared.");
+  }, [announce]);
+
   return {
     state,
     description,
@@ -254,6 +273,7 @@ export function useVisionAssistant() {
     captureAndDescribe,
     describeFromFile,
     repeatDescription,
+    clearHistory,
   };
 }
 

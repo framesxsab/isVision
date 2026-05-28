@@ -11,12 +11,23 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { IconArrowLeft, IconUpload, IconRefresh, IconCaptureCircle } from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
+import { useSettingsStore } from "@/core/store/settingsStore";
+import { pushTactileHandoff } from "@/modules/tactile-output/inputAdapters";
+
+// Recognize camera-permission errors by their user-facing text.
+// useVisionAssistant emits explainCameraError() strings; keep this in sync.
+function isPermissionDenied(message: string | null): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return lower.includes("permission") && (lower.includes("denied") || lower.includes("blocked"));
+}
 
 export default function VisionAssistantPage() {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const announce = useAnnounce();
+  const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
 
   const {
     state,
@@ -28,6 +39,7 @@ export default function VisionAssistantPage() {
     captureAndDescribe,
     describeFromFile,
     repeatDescription,
+    clearHistory,
   } = useVisionAssistant();
 
   useEffect(() => {
@@ -39,6 +51,90 @@ export default function VisionAssistantPage() {
 
     return () => stopCamera();
   }, [startCamera, stopCamera, announce]);
+
+  // Stop the camera the moment the tab/page is hidden — battery + privacy.
+  // Restart it when the user returns, so the experience is seamless.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        stopCamera();
+      } else if (document.visibilityState === "visible" && videoRef.current) {
+        startCamera(videoRef.current);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [startCamera, stopCamera]);
+
+  // Reflect the latest camera attempt into setupStatus so the Settings page
+  // and any future module-level UIs see a consistent permission picture.
+  useEffect(() => {
+    if (isPermissionDenied(error)) {
+      setSetupStatus({ camera: "denied" });
+    }
+  }, [error, setSetupStatus]);
+
+  const retryCamera = useCallback(() => {
+    if (videoRef.current) {
+      startCamera(videoRef.current);
+    }
+  }, [startCamera]);
+
+  const openSetup = useCallback(() => {
+    stopCamera();
+    navigate("/onboarding?restart=1");
+  }, [navigate, stopCamera]);
+
+  const copyDescription = useCallback(async () => {
+    if (!description) return;
+    try {
+      await navigator.clipboard.writeText(description);
+      announce("Copied to clipboard");
+      speechEngine.interrupt("Copied.");
+    } catch {
+      // Older browsers / blocked clipboard — fall back to a textarea trick
+      // so the action still works without ever silently failing.
+      const ta = document.createElement("textarea");
+      ta.value = description;
+      ta.setAttribute("aria-hidden", "true");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        announce("Copied to clipboard");
+        speechEngine.interrupt("Copied.");
+      } catch {
+        announce("Could not copy. Clipboard access is blocked.");
+        speechEngine.interrupt("Could not copy. Clipboard access is blocked.");
+      }
+      document.body.removeChild(ta);
+    }
+  }, [announce, description]);
+
+  const sendToReader = useCallback(() => {
+    if (!description) return;
+    stopCamera();
+    speechEngine.interrupt("Sending to Reader.");
+    navigate("/reader", {
+      state: {
+        preload: {
+          title: "AI Vision description",
+          text: description,
+          source: "AI Vision",
+        },
+      },
+    });
+  }, [description, navigate, stopCamera]);
+
+  const sendToTactile = useCallback(() => {
+    if (!description) return;
+    pushTactileHandoff(description, "AI Vision");
+    speechEngine.interrupt("Sent to Tactile Lab.");
+    stopCamera();
+    navigate("/tactile-output");
+  }, [description, navigate, stopCamera]);
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,25 +178,74 @@ export default function VisionAssistantPage() {
 
         {/* Error overlay */}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6">
-            <p className="text-red-400 text-lg text-center" role="alert">{error}</p>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6">
+            <div className="max-w-sm w-full text-center" role="alert">
+              <p className="text-rose-300 text-base sm:text-lg leading-relaxed mb-5">{error}</p>
+              {isPermissionDenied(error) ? (
+                <div className="space-y-3">
+                  <Button onClick={retryCamera} size="lg" className="w-full">
+                    Try again
+                  </Button>
+                  <Button onClick={openSetup} variant="secondary" className="w-full">
+                    Run setup again
+                  </Button>
+                  <p className="text-xs text-stone-400 leading-relaxed mt-3">
+                    If the prompt doesn't reappear, allow camera access for this site in your browser settings, then tap Try again.
+                  </p>
+                </div>
+              ) : (
+                <Button onClick={retryCamera} size="lg" className="w-full">
+                  Try again
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Description panel */}
       {description && (
-        <div className="bg-gray-900 border-t border-gray-700 px-4 py-4 max-h-48 overflow-y-auto">
-          <div className="flex items-start justify-between gap-2 max-w-lg mx-auto">
-            <p className="text-gray-200 text-base leading-relaxed flex-1">{description}</p>
-            <Button
-              variant="ghost"
-              onClick={repeatDescription}
-              aria-label="Repeat description"
-              className="flex-shrink-0"
-            >
-              <IconRefresh className="w-5 h-5" />
-            </Button>
+        <div className="bg-gray-900 border-t border-gray-700 px-4 py-4 max-h-56 overflow-y-auto">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <p className="text-gray-200 text-base leading-relaxed flex-1">{description}</p>
+              <Button
+                variant="ghost"
+                onClick={repeatDescription}
+                aria-label="Repeat description"
+                className="flex-shrink-0"
+              >
+                <IconRefresh className="w-5 h-5" />
+              </Button>
+            </div>
+            {/* Handoff row — Copy / Send to Reader / Send to Tactile / Clear */}
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Description actions">
+              <button
+                onClick={copyDescription}
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+              >
+                Copy
+              </button>
+              <button
+                onClick={sendToReader}
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+              >
+                Send to Reader
+              </button>
+              <button
+                onClick={sendToTactile}
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+              >
+                Send to Tactile
+              </button>
+              <button
+                onClick={clearHistory}
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ml-auto"
+                aria-label="Clear vision history"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useReader } from "./useReader";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -15,14 +15,21 @@ import {
   IconPause,
   IconSkipForward,
   IconSkipBack,
+  IconRefresh,
 } from "@/components/Icons";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { pushTactileHandoff } from "@/modules/tactile-output/inputAdapters";
 
+interface PreloadState {
+  preload?: { title: string; text: string; source: string };
+  resume?: { url: string; chunkIndex: number };
+}
+
 export default function ReaderPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [urlInput, setUrlInput] = useState("");
   const announce = useAnnounce();
   const fontSize = useSettingsStore((s) => s.fontSize);
@@ -33,6 +40,7 @@ export default function ReaderPage() {
   speechRateRef.current = speechRate;
 
   const {
+    url,
     title,
     htmlContent,
     headings,
@@ -43,11 +51,62 @@ export default function ReaderPage() {
     isLoading,
     error,
     loadUrl,
+    loadContent,
     togglePlayPause,
     nextChunk,
     prevChunk,
+    repeatChunk,
+    restart,
     jumpToHeading,
   } = useReader();
+  const setLastSession = useSettingsStore((s) => s.setLastSession);
+
+  // Mirror the loaded URL + paragraph position into the persisted resume
+  // slot. Skip during the initial render and skip if we have no URL (a
+  // preloaded AI Vision blurb has no resume target).
+  useEffect(() => {
+    if (!url) return;
+    setLastSession({
+      route: "/reader",
+      payload: { url, title, chunkIndex: currentChunk, total: chunks.length },
+      updatedAt: Date.now(),
+    });
+  }, [url, title, currentChunk, chunks.length, setLastSession]);
+
+  // Pick up text handed off from another module (today: AI Vision) or a
+  // resume-on-launch payload from HomePage. Clear route state after
+  // consuming so refresh / back-nav don't replay it.
+  useEffect(() => {
+    const state = location.state as PreloadState | null;
+    if (state?.preload?.text) {
+      const p = state.preload;
+      loadContent(p.title || `From ${p.source}`, `<p>${escapeHtml(p.text)}</p>`);
+      announce(`Loaded text from ${p.source}`);
+      speechEngine.interrupt(`Loaded text from ${p.source}. Tap play to read it aloud.`);
+      navigate(location.pathname, { replace: true });
+    } else if (state?.resume?.url) {
+      // Resume flow — seed sessionStorage with the persisted chunk index
+      // BEFORE calling loadUrl so the existing resume path inside useReader
+      // picks it up naturally without a second restore step. This is the
+      // cleanest way to bridge cross-session resume (localStorage) into the
+      // in-session position memory (sessionStorage) the Reader already uses.
+      const { url: resumeUrl, chunkIndex } = state.resume;
+      try {
+        sessionStorage.setItem(
+          "isvisible.reader.pos:" + resumeUrl,
+          String(chunkIndex)
+        );
+      } catch {
+        // ignore — resume just won't restore to the exact paragraph
+      }
+      setUrlInput(resumeUrl);
+      loadUrl(resumeUrl);
+      navigate(location.pathname, { replace: true });
+    }
+    // Mount-only effect — captures the initial location.state. Subsequent
+    // route changes shouldn't replay preload/resume.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     announce("Accessible Reader is ready. Enter a URL to read.");
@@ -101,6 +160,18 @@ export default function ReaderPage() {
       loadUrl(url);
     }
   };
+
+  // Escape user-provided text before wrapping it in HTML for loadContent.
+  // The text comes from AI Vision output, which is a remote source — we won't
+  // let it inject markup into the Reader DOM.
+  function escapeHtml(input: string): string {
+    return input
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -263,6 +334,31 @@ export default function ReaderPage() {
             >
               <IconSkipForward className="w-6 h-6" />
             </Button>
+          </div>
+
+          {/* Secondary controls — Repeat and Restart sit below the
+              primary play row so they don't crowd the main interaction
+              but stay one tap away for blind users replaying a paragraph
+              or starting a long article over. */}
+          <div className="flex items-center justify-center gap-2 max-w-lg mx-auto mt-2">
+            <button
+              type="button"
+              onClick={repeatChunk}
+              className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 inline-flex items-center gap-1"
+              aria-label="Repeat current paragraph"
+            >
+              <IconRefresh className="w-4 h-4" /> Repeat
+            </button>
+            {url && currentChunk > 0 && (
+              <button
+                type="button"
+                onClick={restart}
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                aria-label="Restart article from the beginning"
+              >
+                Restart
+              </button>
+            )}
           </div>
 
           {/* Progress */}

@@ -20,7 +20,9 @@ import { detectSpeechSynthesis } from "@/core/utils/capabilities";
 import { translateGrade1Debug } from "./brailleFrames";
 import {
   accuracyPercent,
-  historyToCsv,
+  historyToCsvWithSummary,
+  mistakePool,
+  nextMistakePrompt,
   nextPrompt,
   scoreAttempt,
   spokenAnswer,
@@ -67,6 +69,29 @@ export default function TactileDrillPage() {
   const pushDrillAttempt = useTactileStore((s) => s.pushDrillAttempt);
   const resetDrillScore = useTactileStore((s) => s.resetDrillScore);
 
+  // Practice-mistakes mode is transient (session-local) on purpose — the
+  // learner should consciously opt in each session. Auto-resuming it would
+  // be frustrating after a long break: you'd come back to the app and only
+  // get drilled on old mistakes instead of getting fresh practice.
+  const [practiceMistakes, setPracticeMistakes] = useState(false);
+
+  // The set of mistake answers at the moment the user toggled the mode on.
+  // We snapshot the pool so the queue is stable for the session — otherwise
+  // every correct answer would shrink the pool mid-session and the user
+  // would mysteriously stop seeing letters they were just drilling.
+  const mistakeStats = useMemo(() => mistakePool(attemptHistory), [attemptHistory]);
+
+  // Build the next prompt either from the mistake pool (when on) or the
+  // regular generator. Falls back to the regular generator when the pool
+  // is exhausted, so the drill never deadlocks.
+  const buildNextPrompt = useCallback((): DrillPrompt => {
+    if (practiceMistakes) {
+      const fromMistakes = nextMistakePrompt(attemptHistory);
+      if (fromMistakes) return fromMistakes;
+    }
+    return nextPrompt(mode, undefined, difficulty);
+  }, [practiceMistakes, attemptHistory, mode, difficulty]);
+
   // Transient — derived per session.
   const [history, setHistory] = useState<DrillPrompt[]>(() => [nextPrompt(mode, undefined, difficulty)]);
   const [cursor, setCursor] = useState(0);
@@ -86,11 +111,16 @@ export default function TactileDrillPage() {
   // mix into a word drill, and the new pool kicks in immediately. We keep
   // the score so the learner can compare runs if they like.
   useEffect(() => {
-    setHistory([nextPrompt(mode, undefined, difficulty)]);
+    setHistory([buildNextPrompt()]);
     setCursor(0);
     setGuess("");
     setFeedback("idle");
-  }, [mode, difficulty]);
+    // Intentionally exclude buildNextPrompt from deps — it changes on every
+    // attempt as attemptHistory grows, which would re-trigger this effect
+    // mid-session and reset the cursor. Only mode/difficulty/practiceMistakes
+    // should reset the queue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, difficulty, practiceMistakes]);
 
   // Speak the prompt depending on speech mode. We delay slightly for the
   // "speech+tactile" combo so the dots can be felt first.
@@ -131,13 +161,13 @@ export default function TactileDrillPage() {
       // If the learner is mid-history (after pressing Back), drop the future
       // so a new sequence starts from here. Matches how a tape recorder works.
       const trimmed = prev.slice(0, cursor + 1);
-      return [...trimmed, nextPrompt(mode, undefined, difficulty)];
+      return [...trimmed, buildNextPrompt()];
     });
     setCursor((c) => c + 1);
     setGuess("");
     setFeedback("idle");
     inputRef.current?.focus();
-  }, [cursor, mode, difficulty]);
+  }, [cursor, buildNextPrompt]);
 
   const goBack = useCallback(() => {
     if (cursor === 0) return;
@@ -158,15 +188,19 @@ export default function TactileDrillPage() {
 
   const reset = useCallback(() => {
     resetDrillScore();
-    setHistory([nextPrompt(mode, undefined, difficulty)]);
+    setHistory([buildNextPrompt()]);
     setCursor(0);
     setGuess("");
     setFeedback("idle");
     announce("Drill reset. Score cleared.");
-  }, [announce, mode, difficulty, resetDrillScore]);
+  }, [announce, buildNextPrompt, resetDrillScore]);
 
   const exportCsv = useCallback(() => {
-    const csv = historyToCsv(attemptHistory);
+    // historyToCsvWithSummary appends a per-answer accuracy block after the
+    // raw attempt log. Spreadsheet importers see two tables; `cat` users see
+    // both views. The summary is what makes the export actually useful for
+    // tracking which symbols still need work.
+    const csv = historyToCsvWithSummary(attemptHistory);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -176,6 +210,25 @@ export default function TactileDrillPage() {
     URL.revokeObjectURL(url);
     announce(`Exported ${attemptHistory.length} drill attempts.`);
   }, [announce, attemptHistory]);
+
+  const togglePracticeMistakes = useCallback(() => {
+    setPracticeMistakes((on) => {
+      const next = !on;
+      const poolSize = mistakeStats.length;
+      if (next && poolSize === 0) {
+        // Don't silently flip the toggle into a no-op state — tell the user
+        // there's nothing to practice yet, and leave the toggle off.
+        announce("No mistakes yet to practice. Keep drilling first.");
+        return false;
+      }
+      announce(
+        next
+          ? `Practice mistakes on. ${poolSize} answer${poolSize === 1 ? "" : "s"} in your weakest pool.`
+          : "Practice mistakes off. Back to the regular pool."
+      );
+      return next;
+    });
+  }, [announce, mistakeStats.length]);
 
   // Mistakes only — the user already knows what they got right. Showing the
   // last few wrong answers turns the panel into a quick review surface.
@@ -261,6 +314,36 @@ export default function TactileDrillPage() {
           </div>
           <p id="difficulty-hint" className="text-sm text-gray-300 mt-2">
             {DIFFICULTY_OPTIONS.find((d) => d.id === difficulty)!.hint}
+          </p>
+        </section>
+
+        <section aria-labelledby="practice-mistakes-heading">
+          <h2 id="practice-mistakes-heading" className="text-lg font-semibold text-white mb-3">
+            Practice mistakes
+          </h2>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={practiceMistakes}
+            aria-describedby="practice-mistakes-hint"
+            onClick={togglePracticeMistakes}
+            data-testid="toggle-practice-mistakes"
+            className={`min-h-touch w-full rounded-lg border px-4 py-3 font-semibold text-sm flex items-center justify-between gap-3 ${
+              practiceMistakes
+                ? "bg-amber-500/15 border-amber-400/40 text-amber-100"
+                : "bg-gray-900 border-gray-700 text-gray-200"
+            }`}
+            disabled={!practiceMistakes && mistakeStats.length === 0}
+          >
+            <span>{practiceMistakes ? "On — drilling your weak spots" : "Off — random prompts"}</span>
+            <span className="text-xs text-gray-400" aria-hidden="true">
+              {mistakeStats.length} weak
+            </span>
+          </button>
+          <p id="practice-mistakes-hint" className="text-sm text-gray-300 mt-2">
+            {mistakeStats.length === 0
+              ? "Make at least one wrong guess to build a mistake pool."
+              : `Queues only answers you've missed — starts with the ${mistakeStats[0]!.kind === "single letter" ? "letter" : "answer"} "${mistakeStats[0]!.answer}" (your weakest).`}
           </p>
         </section>
 

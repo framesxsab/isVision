@@ -10,6 +10,31 @@ import { cleanContent, splitIntoChunks } from "./contentCleaner";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 
+// Per-URL paragraph position is kept in sessionStorage — survives an
+// accidental refresh during a study session, but clears at tab close so
+// nothing is silently retained across sessions for privacy.
+const POSITION_KEY_PREFIX = "isvisible.reader.pos:";
+
+function readSavedPosition(url: string): number | null {
+  try {
+    const raw = sessionStorage.getItem(POSITION_KEY_PREFIX + url);
+    if (raw == null) return null;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedPosition(url: string, index: number) {
+  try {
+    sessionStorage.setItem(POSITION_KEY_PREFIX + url, String(index));
+  } catch {
+    // Storage full or denied — silently skip. Position memory is a nicety,
+    // not a correctness requirement.
+  }
+}
+
 interface ReaderState {
   url: string;
   title: string;
@@ -42,6 +67,18 @@ export function useReader() {
   const readingRef = useRef(false);
   const chunkIndexRef = useRef(0);
   const chunksRef = useRef<string[]>([]);
+  // Track the URL whose position is being saved. Preload payloads from
+  // other modules (AI Vision, etc.) don't have a URL — leave this empty
+  // so we don't write garbage keys to sessionStorage.
+  const currentUrlRef = useRef<string>("");
+
+  // Persist position whenever the user moves through paragraphs, but only
+  // for real URL-loaded articles. The very first chunk also gets saved so
+  // a refresh mid-article doesn't jump back to the top.
+  const persistPosition = useCallback((index: number) => {
+    const url = currentUrlRef.current;
+    if (url) writeSavedPosition(url, index);
+  }, []);
 
   // Load a URL and extract content
   const loadUrl = useCallback(
@@ -56,8 +93,15 @@ export function useReader() {
         const { title, content, textContent, headings } = cleanContent(html, url);
         const chunks = splitIntoChunks(textContent);
 
+        // Resume from the saved paragraph if we've read this URL before.
+        // Clamp against the new chunk count in case the source page changed.
+        const saved = readSavedPosition(url);
+        const resumeIndex =
+          saved != null && saved < chunks.length ? saved : 0;
+
         chunksRef.current = chunks;
-        chunkIndexRef.current = 0;
+        chunkIndexRef.current = resumeIndex;
+        currentUrlRef.current = url;
 
         setState((s) => ({
           ...s,
@@ -65,12 +109,20 @@ export function useReader() {
           htmlContent: content,
           headings,
           chunks,
-          currentChunk: 0,
+          currentChunk: resumeIndex,
           isLoading: false,
         }));
 
         announce(`Loaded: ${title}`);
-        speechEngine.interrupt(`Article loaded. ${title}. ${chunks.length} sections. Say read or tap play to start.`);
+        if (resumeIndex > 0) {
+          speechEngine.interrupt(
+            `Article loaded. ${title}. Resuming at paragraph ${resumeIndex + 1} of ${chunks.length}. Tap play to continue, or restart to start over.`
+          );
+        } else {
+          speechEngine.interrupt(
+            `Article loaded. ${title}. ${chunks.length} sections. Say read or tap play to start.`
+          );
+        }
       } catch (err) {
         const msg =
           err instanceof Error
@@ -91,9 +143,13 @@ export function useReader() {
 
       chunksRef.current = chunks;
       chunkIndexRef.current = 0;
+      // Preloaded content (AI Vision handoff, paste, etc.) is not URL-keyed,
+      // so disable position persistence for it.
+      currentUrlRef.current = "";
 
       setState((s) => ({
         ...s,
+        url: "",
         title,
         htmlContent: content,
         headings,
@@ -120,6 +176,7 @@ export function useReader() {
 
     const chunk = chunks[index]!;
     setState((s) => ({ ...s, currentChunk: index }));
+    persistPosition(index);
 
     speechEngine.setEventHandler((event) => {
       if (event === "end" && readingRef.current) {
@@ -129,7 +186,7 @@ export function useReader() {
     });
 
     speechEngine.speak(chunk);
-  }, []);
+  }, [persistPosition]);
 
   // Start/resume reading
   const play = useCallback(() => {
@@ -172,10 +229,11 @@ export function useReader() {
         isReading: false,
         isPaused: true,
       }));
+      persistPosition(chunkIndexRef.current);
       const chunk = chunksRef.current[chunkIndexRef.current]!;
       speechEngine.interrupt(chunk);
     }
-  }, []);
+  }, [persistPosition]);
 
   // Skip to previous chunk
   const prevChunk = useCallback(() => {
@@ -189,9 +247,46 @@ export function useReader() {
         isReading: false,
         isPaused: true,
       }));
+      persistPosition(chunkIndexRef.current);
       const chunk = chunksRef.current[chunkIndexRef.current]!;
       speechEngine.interrupt(chunk);
     }
+  }, [persistPosition]);
+
+  // Re-read the current paragraph without advancing — different from
+  // pause+play, which would re-start the chunk only if speech had ended,
+  // and useless if the user just wants to hear it again from the top.
+  const repeatChunk = useCallback(() => {
+    const chunks = chunksRef.current;
+    const index = chunkIndexRef.current;
+    if (index < 0 || index >= chunks.length) return;
+    speechEngine.stop();
+    readingRef.current = false;
+    setState((s) => ({ ...s, isReading: false, isPaused: true }));
+    speechEngine.interrupt(chunks[index]!);
+  }, []);
+
+  // Wipe the saved position for the current URL and rewind to the top.
+  // Lets the user explicitly choose to start over when resume isn't wanted.
+  const restart = useCallback(() => {
+    const url = currentUrlRef.current;
+    if (url) {
+      try {
+        sessionStorage.removeItem(POSITION_KEY_PREFIX + url);
+      } catch {
+        // ignore
+      }
+    }
+    chunkIndexRef.current = 0;
+    speechEngine.stop();
+    readingRef.current = false;
+    setState((s) => ({
+      ...s,
+      currentChunk: 0,
+      isReading: false,
+      isPaused: true,
+    }));
+    speechEngine.interrupt("Restarted from the top.");
   }, []);
 
   // Jump to a specific heading
@@ -214,10 +309,11 @@ export function useReader() {
           isReading: false,
           isPaused: true,
         }));
+        persistPosition(chunkIdx);
         speechEngine.interrupt(`${heading.text}`);
       }
     },
-    [state.headings]
+    [state.headings, persistPosition]
   );
 
   // Cleanup
@@ -237,6 +333,8 @@ export function useReader() {
     togglePlayPause,
     nextChunk,
     prevChunk,
+    repeatChunk,
+    restart,
     jumpToHeading,
   };
 }
