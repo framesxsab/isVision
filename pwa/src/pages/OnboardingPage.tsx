@@ -51,6 +51,24 @@ function isTypingTarget(target: EventTarget | null) {
   );
 }
 
+function BrandMark() {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative mx-auto mb-6 w-20 h-20 rounded-2xl flex items-center justify-center
+                 bg-gradient-to-br from-primary-400/25 via-primary-500/10 to-violet-500/15
+                 border border-primary-400/30
+                 shadow-[0_10px_40px_-12px_rgba(34,211,238,0.5),inset_0_1px_0_rgba(255,255,255,0.08)]"
+    >
+      <span className="absolute inset-0 rounded-2xl bg-primary-400/10 blur-xl -z-10" />
+      <svg viewBox="0 0 48 48" className="w-10 h-10 text-primary-200" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="24" cy="24" r="6" />
+        <path d="M4 24c4-8 11-13 20-13s16 5 20 13c-4 8-11 13-20 13S8 32 4 24z" />
+      </svg>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -184,18 +202,22 @@ export default function OnboardingPage() {
           {liveMessage}
         </div>
 
-        <div className="text-center mb-8">
-          <p className="text-sm uppercase text-primary-200 mb-3">
+        <div className="text-center mb-10 animate-fade-up">
+          <BrandMark />
+          <p className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-semibold px-3 py-1 rounded-full bg-primary-500/10 text-primary-200 border border-primary-400/25 mb-5">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary-300 animate-pulse-soft" />
             Audio-first setup
           </p>
-          <h1 className="text-3xl font-bold text-stone-50 mb-4">isVisible setup</h1>
-          <p className="text-lg text-stone-300 leading-relaxed">
-            Start spoken setup to continue with voice guidance. Setup can also
-            be skipped and changed later from Settings.
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            <span className="text-stone-50">is</span>
+            <span className="text-gradient-cyan">Visible</span>
+          </h1>
+          <p className="text-lg text-stone-300 leading-relaxed max-w-md mx-auto">
+            Start spoken setup to continue with voice guidance, or skip and configure later from Settings.
           </p>
         </div>
 
-        <div className="w-full space-y-3">
+        <div className="w-full space-y-3 animate-fade-up">
           <Button
             ref={firstActionRef}
             onClick={handleNext}
@@ -217,36 +239,53 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 max-w-lg mx-auto">
       <div className="sr-only" role="status" aria-live="assertive">
         {liveMessage}
       </div>
 
-      <div
-        className="flex gap-2 mb-8"
-        role="progressbar"
-        aria-valuemin={1}
-        aria-valuemax={steps.length}
-        aria-valuenow={step + 1}
-        aria-label={`Step ${step + 1} of ${steps.length}: ${currentStep.title}`}
-      >
-        {steps.map((_, i) => (
-          <div
-            key={i}
-            aria-hidden="true"
-            className={`h-2 w-12 rounded-full transition-colors ${
-              i <= step ? "bg-primary-400" : "bg-stone-700"
-            }`}
-          />
-        ))}
+      {/* Step counter + progress dots */}
+      <div className="w-full mb-8 animate-fade-up">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs uppercase tracking-[0.18em] font-semibold text-primary-300">
+            Step {step + 1} of {steps.length}
+          </span>
+          <button
+            onClick={handleSkip}
+            className="text-xs uppercase tracking-[0.16em] font-semibold text-stone-400 hover:text-stone-200 transition-colors px-2 py-1 rounded"
+            aria-label="Skip setup"
+          >
+            Skip
+          </button>
+        </div>
+        <div
+          className="flex gap-1.5"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={steps.length}
+          aria-valuenow={step + 1}
+          aria-label={`Step ${step + 1} of ${steps.length}: ${currentStep.title}`}
+        >
+          {steps.map((_, i) => (
+            <div
+              key={i}
+              aria-hidden="true"
+              className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                i < step
+                  ? "bg-primary-400"
+                  : i === step
+                    ? "bg-primary-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]"
+                    : "bg-surface-3"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="text-center mb-8">
-        <p className="text-sm text-primary-200 mb-2">
-          Step {step + 1} of {steps.length}
-        </p>
-        <h1 className="text-2xl font-bold text-stone-50 mb-4">{currentStep.title}</h1>
-        <p className="text-lg text-stone-300 leading-relaxed">{currentStep.description}</p>
+      <div className="text-center mb-10 animate-fade-up">
+        <BrandMark />
+        <h1 className="text-3xl font-bold text-stone-50 mb-4 tracking-tight">{currentStep.title}</h1>
+        <p className="text-lg text-stone-300/90 leading-relaxed">{currentStep.description}</p>
       </div>
 
       {isPermissionsStep && (
@@ -293,7 +332,7 @@ export default function OnboardingPage() {
               speechEngine.setVoice(uri);
               announce("This is how I sound.");
             }}
-            className="w-full min-h-touch bg-stone-950 text-stone-50 border border-stone-700 rounded-lg px-4 py-3"
+            className="w-full min-h-touch bg-surface-2 text-stone-50 border border-surface-border rounded-xl px-4 py-3 focus:border-primary-400/60 transition-colors"
           >
             <option value="">System default</option>
             {voices.map((v) => (
@@ -306,8 +345,8 @@ export default function OnboardingPage() {
       )}
 
       {step === 1 && !platform.supportsVibration && (
-        <p className="text-amber-300 text-sm mb-4" role="status">
-          Haptic feedback is not available on this device. Audio feedback will be used instead.
+        <p className="text-amber-300 text-sm mb-4 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-400/20" role="status">
+          Haptic feedback isn't available on this device. Audio feedback will be used instead.
         </p>
       )}
 
@@ -334,9 +373,6 @@ export default function OnboardingPage() {
         )}
         <Button onClick={repeatCurrentStep} variant="secondary" className="w-full">
           Repeat guidance
-        </Button>
-        <Button onClick={handleSkip} variant="ghost" className="w-full">
-          Skip setup
         </Button>
       </div>
     </div>

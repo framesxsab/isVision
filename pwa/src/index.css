@@ -4,33 +4,60 @@
 
 @layer utilities {
   .pb-nav {
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
   .pb-nav-action {
-    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
   }
   .bottom-above-nav {
-    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .text-gradient-cyan {
+    background: linear-gradient(135deg, #67e8f9 0%, #22d3ee 50%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .surface-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 60%),
+      #121821;
+  }
+
+  .surface-panel {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 100%),
+      #0c1117;
   }
 }
 
 @layer base {
   html {
-    background: #090a08;
+    background: #07090c;
   }
 
   body {
     min-height: 100vh;
     background:
-      linear-gradient(180deg, rgba(32, 37, 29, 0.72) 0%, rgba(9, 10, 8, 0) 280px),
-      #090a08;
-    color: #f7f7f2;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      radial-gradient(900px 480px at 0% -10%, rgba(34, 211, 238, 0.10) 0%, rgba(34, 211, 238, 0) 60%),
+      radial-gradient(700px 420px at 100% -8%, rgba(167, 139, 250, 0.10) 0%, rgba(167, 139, 250, 0) 55%),
+      radial-gradient(600px 360px at 50% 110%, rgba(34, 211, 238, 0.06) 0%, rgba(34, 211, 238, 0) 60%),
+      #07090c;
+    background-attachment: fixed;
+    color: #f5f7fa;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   *:focus-visible {
     outline: 3px solid #22d3ee;
-    outline-offset: 2px;
+    outline-offset: 3px;
+    border-radius: 6px;
   }
 
   button,
@@ -54,7 +81,12 @@
   }
 
   input[type="checkbox"] {
-    accent-color: #0891b2;
+    accent-color: #06b6d4;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.32);
+    color: #f5f7fa;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -74,5 +106,9 @@
     background-color: var(--bg);
     color: var(--fg);
     min-height: 100vh;
+  }
+
+  .high-contrast body {
+    background: var(--bg);
   }
 }

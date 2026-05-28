@@ -20,34 +20,44 @@ export function TabBar() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed bottom-0 left-0 right-0 bg-stone-950/95 backdrop-blur border-t border-stone-700 z-40 pb-[env(safe-area-inset-bottom)]"
+      className="fixed left-0 right-0 z-40 pointer-events-none"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
     >
-      <div className="flex justify-around items-center max-w-3xl mx-auto px-3">
-        {tabs.map((tab) => {
-          const isActive = location.pathname === tab.path;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`
-                flex flex-col items-center justify-center
-                min-h-touch min-w-[88px] py-1 px-3
-                text-xs font-medium transition-colors
-                border-t-2
-                ${
-                  isActive
-                    ? "text-primary-300 border-primary-400"
-                    : "text-stone-400 hover:text-stone-100 border-transparent"
-                }
-              `}
-              aria-label={tab.label}
-              aria-current={isActive ? "page" : undefined}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="max-w-md mx-auto px-4 pointer-events-auto">
+        <div className="
+          relative
+          flex items-stretch justify-around
+          rounded-full
+          bg-surface-1/85 backdrop-blur-xl
+          border border-surface-border
+          shadow-[0_10px_40px_-10px_rgba(0,0,0,0.7)]
+          px-2 py-1.5
+        ">
+          {tabs.map((tab) => {
+            const isActive = location.pathname === tab.path;
+            return (
+              <button
+                key={tab.path}
+                onClick={() => navigate(tab.path)}
+                className={`
+                  relative flex-1 flex items-center justify-center gap-2
+                  min-h-touch px-4 rounded-full
+                  text-sm font-medium transition-all duration-200
+                  ${
+                    isActive
+                      ? "bg-primary-500/15 text-primary-200 ring-1 ring-primary-400/30"
+                      : "text-stone-400 hover:text-stone-100 hover:bg-white/5"
+                  }
+                `}
+                aria-label={tab.label}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <span className={isActive ? "text-primary-300" : ""}>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

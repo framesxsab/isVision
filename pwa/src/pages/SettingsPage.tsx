@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { speechEngine } from "@/core/audio/SpeechEngine";
@@ -20,6 +21,150 @@ import {
   type Disclosure,
 } from "@/core/privacy/disclosures";
 
+// Inline icon helpers — kept here to avoid bloating the shared Icons module
+// for one-off section adornments.
+function SectionIcon({ children, accent }: { children: ReactNode; accent: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex items-center justify-center w-9 h-9 rounded-xl border ${accent}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SpeakerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <path d="M15.54 8.46a5 5 0 010 7.07" />
+      <path d="M19.07 4.93a10 10 0 010 14.14" />
+    </svg>
+  );
+}
+function DisplayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  );
+}
+function FeaturesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  );
+}
+function CloudIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
+    </svg>
+  );
+}
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </svg>
+  );
+}
+
+function Panel({
+  id,
+  title,
+  description,
+  icon,
+  accent,
+  children,
+}: {
+  id: string;
+  title: string;
+  description?: string;
+  icon: ReactNode;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      aria-labelledby={`${id}-heading`}
+      className="mb-5 rounded-2xl surface-panel border border-surface-border p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3 mb-5">
+        <SectionIcon accent={accent}>{icon}</SectionIcon>
+        <div className="flex-1 min-w-0">
+          <h2 id={`${id}-heading`} className="text-lg font-semibold text-stone-50 tracking-tight">
+            {title}
+          </h2>
+          {description && (
+            <p className="text-sm text-stone-400 mt-0.5 leading-relaxed">{description}</p>
+          )}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ToggleRow({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  hint?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={`flex items-center justify-between gap-4 min-h-touch px-3 -mx-3 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] ${
+        disabled ? "opacity-60 cursor-not-allowed" : ""
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <span className="text-stone-50 font-medium block">{label}</span>
+        {hint && <span className="text-stone-500 text-xs block mt-0.5">{hint}</span>}
+      </div>
+      <span className="relative inline-flex shrink-0">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden="true"
+          className="
+            block w-12 h-7 rounded-full
+            bg-surface-3 border border-surface-border
+            peer-checked:bg-primary-500/40 peer-checked:border-primary-400/60
+            peer-focus-visible:ring-2 peer-focus-visible:ring-primary-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface-0
+            transition-colors
+          "
+        />
+        <span
+          aria-hidden="true"
+          className="
+            absolute top-0.5 left-0.5 w-6 h-6 rounded-full
+            bg-stone-200 shadow-sm
+            peer-checked:translate-x-5 peer-checked:bg-white
+            transition-transform
+          "
+        />
+      </span>
+    </label>
+  );
+}
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const settings = useSettingsStore();
@@ -35,12 +180,10 @@ export default function SettingsPage() {
     speechEngine.init();
     const loadVoices = () => setVoices(speechEngine.getVoices());
     loadVoices();
-    // Voices load asynchronously in some browsers
     speechSynthesis?.addEventListener("voiceschanged", loadVoices);
     return () => speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
   }, []);
 
-  // Sync settings to speech engine whenever they change
   useEffect(() => {
     speechEngine.setRate(settings.speechRate);
   }, [settings.speechRate]);
@@ -74,15 +217,10 @@ export default function SettingsPage() {
     setPrecacheBusy(true);
     setPrecacheMessage("");
     try {
-      // Dynamic import keeps the Liblouis adapter out of the initial chunk
-      // for users who never open Settings → Offline.
       const { translateWithTable } = await import(
         "@/modules/tactile-output/liblouisAdapter"
       );
       const tables: LiblouisTableId[] = ["en-g2", "fr-g2", "de-g2"];
-      // Translate a tiny string in each language so the worker fetches
-      // every entry table — the runtime CacheFirst handler stashes them
-      // for offline use without us writing into the cache directly.
       const results = await Promise.allSettled(
         tables.map((t) => translateWithTable("a", t))
       );
@@ -98,8 +236,6 @@ export default function SettingsPage() {
   }, [runReadinessCheck]);
 
   const clearLocalData = useCallback(() => {
-    // Reset zustand-in-memory state first so persist doesn't immediately
-    // rewrite the keys we're about to clear.
     tactileStoreState.persist.clearStorage();
     tactileStoreState.setState({
       lastImportedText: "",
@@ -116,10 +252,6 @@ export default function SettingsPage() {
       drillDifficulty: "normal",
       drillHistory: [],
     });
-    // Reset the general settings store too. Onboarding flag stays out of
-    // the wipe — clearing it would dump the user back into the welcome
-    // flow, which they almost certainly don't want from a "clear my data"
-    // button.
     settings.setSpeechRate(1.0);
     settings.setSpeechPitch(1.0);
     settings.setSpeechVolume(1.0);
@@ -131,30 +263,42 @@ export default function SettingsPage() {
     setClearMessage("Cleared imported text, drill history, language, and per-page settings.");
   }, [settings, tactileStoreState]);
 
-  // Run one check on mount so the panel isn't blank when the user first
-  // opens Settings. Subsequent checks happen on demand via the button.
   useEffect(() => {
     void runReadinessCheck();
   }, [runReadinessCheck]);
 
   return (
-    <div className="min-h-screen px-4 py-6 max-w-3xl mx-auto">
-      <div className="flex items-center gap-3 mb-6 border-b border-stone-700/80 pb-5">
-        <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
+    <div className="min-h-screen px-4 sm:px-6 py-6 sm:py-8 max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-8 animate-fade-up">
+        <button
+          onClick={() => navigate("/")}
+          aria-label="Go back to home"
+          className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-surface-2 border border-surface-border text-stone-300 hover:text-stone-50 hover:bg-surface-3 transition-colors focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
+        >
           <IconArrowLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="text-2xl font-bold text-stone-50">Settings</h1>
+        </button>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-primary-300">
+            Preferences
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-stone-50 tracking-tight">
+            Settings
+          </h1>
+        </div>
       </div>
 
-      {/* Speech Settings */}
-      <section aria-labelledby="speech-heading" className="mb-8">
-        <h2 id="speech-heading" className="text-lg font-semibold text-stone-50 mb-4">
-          Speech
-        </h2>
-
+      {/* Speech */}
+      <Panel
+        id="speech"
+        title="Speech"
+        description="Voice, speed, and pitch for spoken output."
+        icon={<span className="text-primary-300"><SpeakerIcon /></span>}
+        accent="bg-primary-500/10 border-primary-400/30"
+      >
         <div className="space-y-5">
           <div>
-            <label htmlFor="voice-select" className="block text-sm text-stone-300 mb-2">
+            <label htmlFor="voice-select" className="block text-sm font-medium text-stone-200 mb-2">
               Voice
             </label>
             <select
@@ -162,7 +306,7 @@ export default function SettingsPage() {
               value={settings.voiceURI ?? ""}
               onChange={(e) => settings.setVoiceURI(e.target.value || null)}
               aria-describedby="voice-hint"
-              className="w-full min-h-touch bg-stone-950 text-stone-50 border border-stone-700 rounded-lg px-4 py-3"
+              className="w-full min-h-touch bg-surface-2 text-stone-50 border border-surface-border rounded-xl px-4 py-3 focus:border-primary-400/60 transition-colors"
             >
               <option value="">System default</option>
               {voices.map((v) => (
@@ -175,9 +319,14 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label htmlFor="rate-slider" className="block text-sm text-stone-300 mb-2">
-              Speed: {settings.speechRate.toFixed(1)}x
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="rate-slider" className="text-sm font-medium text-stone-200">
+                Speed
+              </label>
+              <span className="text-sm font-mono text-primary-300 tabular-nums">
+                {settings.speechRate.toFixed(1)}x
+              </span>
+            </div>
             <input
               id="rate-slider"
               type="range"
@@ -195,9 +344,14 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label htmlFor="pitch-slider" className="block text-sm text-stone-300 mb-2">
-              Pitch: {settings.speechPitch.toFixed(1)}
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="pitch-slider" className="text-sm font-medium text-stone-200">
+                Pitch
+              </label>
+              <span className="text-sm font-mono text-primary-300 tabular-nums">
+                {settings.speechPitch.toFixed(1)}
+              </span>
+            </div>
             <input
               id="pitch-slider"
               type="range"
@@ -215,29 +369,33 @@ export default function SettingsPage() {
             Test speech
           </Button>
         </div>
-      </section>
+      </Panel>
 
-      {/* Display Settings */}
-      <section aria-labelledby="display-heading" className="mb-8">
-        <h2 id="display-heading" className="text-lg font-semibold text-stone-50 mb-4">
-          Display
-        </h2>
-
+      {/* Display */}
+      <Panel
+        id="display"
+        title="Display"
+        description="Contrast and font sizing."
+        icon={<span className="text-violet-300"><DisplayIcon /></span>}
+        accent="bg-violet-500/10 border-violet-400/30"
+      >
         <div className="space-y-4">
-          <label className="flex items-center gap-3 min-h-touch">
-            <input
-              type="checkbox"
-              checked={settings.highContrast}
-              onChange={(e) => settings.setHighContrast(e.target.checked)}
-              className="w-6 h-6 rounded"
-            />
-            <span className="text-stone-50">High contrast mode</span>
-          </label>
+          <ToggleRow
+            checked={settings.highContrast}
+            onChange={(v) => settings.setHighContrast(v)}
+            label="High contrast mode"
+            hint="Pure black background, pure white text, yellow accents."
+          />
 
           <div>
-            <label htmlFor="font-slider" className="block text-sm text-stone-300 mb-2">
-              Font size: {settings.fontSize}px
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="font-slider" className="text-sm font-medium text-stone-200">
+                Font size
+              </label>
+              <span className="text-sm font-mono text-primary-300 tabular-nums">
+                {settings.fontSize}px
+              </span>
+            </div>
             <input
               id="font-slider"
               type="range"
@@ -251,46 +409,34 @@ export default function SettingsPage() {
             />
           </div>
         </div>
-      </section>
+      </Panel>
 
-      {/* Feature Toggles */}
-      <section aria-labelledby="features-heading" className="mb-8">
-        <h2 id="features-heading" className="text-lg font-semibold text-stone-50 mb-4">
-          Features
-        </h2>
-
-        <div className="space-y-4">
-          <label className="flex items-center gap-3 min-h-touch">
-            <input
-              type="checkbox"
-              checked={settings.hapticEnabled}
-              onChange={(e) => settings.setHapticEnabled(e.target.checked)}
-              disabled={!platform.supportsVibration}
-              className="w-6 h-6 rounded"
-            />
-            <span className="text-stone-50">
-              Haptic feedback
-              {!platform.supportsVibration && (
-                <span className="text-stone-500 text-sm block">
-                  Not supported on this device
-                </span>
-              )}
-            </span>
-          </label>
-
-          <label className="flex items-center gap-3 min-h-touch">
-            <input
-              type="checkbox"
-              checked={settings.spatialAudioEnabled}
-              onChange={(e) => settings.setSpatialAudioEnabled(e.target.checked)}
-              className="w-6 h-6 rounded"
-            />
-            <span className="text-stone-50">Spatial audio cues</span>
-          </label>
+      {/* Features */}
+      <Panel
+        id="features"
+        title="Features"
+        description="Haptic and spatial audio cues."
+        icon={<span className="text-amber-300"><FeaturesIcon /></span>}
+        accent="bg-amber-500/10 border-amber-400/30"
+      >
+        <div className="space-y-2">
+          <ToggleRow
+            checked={settings.hapticEnabled}
+            onChange={(v) => settings.setHapticEnabled(v)}
+            label="Haptic feedback"
+            hint={!platform.supportsVibration ? "Not supported on this device" : undefined}
+            disabled={!platform.supportsVibration}
+          />
+          <ToggleRow
+            checked={settings.spatialAudioEnabled}
+            onChange={(v) => settings.setSpatialAudioEnabled(v)}
+            label="Spatial audio cues"
+            hint="Stereo positioning hints for on-screen elements."
+          />
         </div>
-      </section>
+      </Panel>
 
-      <OfflineReadinessSection
+      <OfflineReadinessPanel
         report={readiness}
         busy={readinessBusy}
         onRecheck={runReadinessCheck}
@@ -299,12 +445,12 @@ export default function SettingsPage() {
         precacheMessage={precacheMessage}
       />
 
-      <PrivacySection onClearLocalData={clearLocalData} clearMessage={clearMessage} />
+      <PrivacyPanel onClearLocalData={clearLocalData} clearMessage={clearMessage} />
     </div>
   );
 }
 
-function PrivacySection({
+function PrivacyPanel({
   onClearLocalData,
   clearMessage,
 }: {
@@ -312,20 +458,19 @@ function PrivacySection({
   clearMessage: string;
 }) {
   return (
-    <section aria-labelledby="privacy-heading" className="mb-8">
-      <h2 id="privacy-heading" className="text-lg font-semibold text-stone-50 mb-2">
-        Privacy &amp; data
-      </h2>
-      <p className="text-sm text-stone-300 mb-4">
-        Every place this app touches your data. Each row names where it is
-        stored or sent. Expand a row to read the full explanation.
-      </p>
+    <Panel
+      id="privacy"
+      title="Privacy & data"
+      description="Every place this app touches your data. Tap a row to read the full explanation."
+      icon={<span className="text-rose-300"><LockIcon /></span>}
+      accent="bg-rose-500/10 border-rose-400/30"
+    >
       <ul className="space-y-2" aria-label="Privacy disclosures">
         {DISCLOSURES.map((d) => (
           <DisclosureRow key={d.id} disclosure={d} />
         ))}
       </ul>
-      <div className="mt-4">
+      <div className="mt-5 pt-4 border-t border-surface-border">
         <Button
           variant="secondary"
           onClick={onClearLocalData}
@@ -334,18 +479,16 @@ function PrivacySection({
         >
           Clear saved data
         </Button>
-        <p className="text-xs text-stone-400 mt-2">
-          Resets translator/language/output choices, imported text, drill
-          history, voice and display preferences. Onboarding stays marked
-          complete so you don't get sent back to the welcome flow.
+        <p className="text-xs text-stone-400 mt-3 leading-relaxed">
+          Resets translator/language/output choices, imported text, drill history, voice and display preferences. Onboarding stays marked complete so you don't get sent back to the welcome flow.
         </p>
         {clearMessage && (
-          <p className="text-xs text-emerald-300 mt-2" role="status" aria-live="polite">
+          <p className="text-xs text-emerald-300 mt-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-400/20" role="status" aria-live="polite">
             {clearMessage}
           </p>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -353,14 +496,14 @@ function DisclosureRow({ disclosure }: { disclosure: Disclosure }) {
   const chipClasses = SCOPE_CLASSES[disclosure.scope];
   const chipLabel = SCOPE_LABELS[disclosure.scope];
   return (
-    <li className="bg-stone-950/80 border border-stone-700/80 rounded-lg">
+    <li className="surface-card border border-surface-border rounded-xl overflow-hidden">
       <details className="group">
         <summary
-          className="min-h-touch px-3 py-3 cursor-pointer flex items-start justify-between gap-3 list-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded-lg"
+          className="min-h-touch px-4 py-3 cursor-pointer flex items-start justify-between gap-3 list-none hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-primary-400 transition-colors"
           aria-label={`${disclosure.title}, stored ${chipLabel}. ${disclosure.summary}. Expand for full details.`}
         >
           <div className="flex-1 min-w-0" aria-hidden="true">
-            <div className="flex items-baseline justify-between gap-2">
+            <div className="flex items-baseline justify-between gap-2 flex-wrap">
               <span className="text-stone-50 font-medium">{disclosure.title}</span>
               <span
                 className={`text-xs border rounded-full px-2 py-0.5 whitespace-nowrap ${chipClasses}`}
@@ -368,12 +511,22 @@ function DisclosureRow({ disclosure }: { disclosure: Disclosure }) {
                 {chipLabel}
               </span>
             </div>
-            <p className="text-sm text-stone-300 mt-1">
-              {disclosure.summary}
-            </p>
+            <p className="text-sm text-stone-300/80 mt-1">{disclosure.summary}</p>
           </div>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-4 h-4 mt-1 text-stone-500 group-open:rotate-90 transition-transform"
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
         </summary>
-        <p className="px-3 pb-3 text-sm text-stone-300 leading-relaxed">
+        <p className="px-4 pb-4 pt-1 text-sm text-stone-300 leading-relaxed border-t border-surface-border/60">
           {disclosure.detail}
         </p>
       </details>
@@ -381,10 +534,7 @@ function DisclosureRow({ disclosure }: { disclosure: Disclosure }) {
   );
 }
 
-// Section is local to this file — it's a self-contained checklist with no
-// reuse value elsewhere, and lifting it out would just spread the readiness
-// concept across two files.
-function OfflineReadinessSection({
+function OfflineReadinessPanel({
   report,
   busy,
   onRecheck,
@@ -400,20 +550,16 @@ function OfflineReadinessSection({
   precacheMessage: string;
 }) {
   return (
-    <section aria-labelledby="offline-heading" className="mb-8">
-      <h2 id="offline-heading" className="text-lg font-semibold text-stone-50 mb-2">
-        Offline readiness
-      </h2>
-      <p className="text-sm text-stone-300 mb-4">
-        Shows what's actually cached right now. After you install the app and
-        use Grade 2 once online, those assets should switch to "cached" and
-        stay usable without a network.
-      </p>
-
+    <Panel
+      id="offline"
+      title="Offline readiness"
+      description="What's cached right now. After install + first use, items switch to cached."
+      icon={<span className="text-emerald-300"><CloudIcon /></span>}
+      accent="bg-emerald-500/10 border-emerald-400/30"
+    >
       {report && !report.cacheApiAvailable && (
-        <p role="alert" className="text-sm text-yellow-300 mb-3">
-          The Cache Storage API isn't available in this context. Install the
-          PWA, or run it over HTTPS / localhost to enable the service worker.
+        <p role="alert" className="text-sm text-amber-200 mb-3 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-400/20">
+          The Cache Storage API isn't available in this context. Install the PWA, or run over HTTPS / localhost to enable the service worker.
         </p>
       )}
 
@@ -453,16 +599,16 @@ function OfflineReadinessSection({
             {precacheBusy ? "Caching…" : "Cache language tables"}
           </Button>
         )}
-        <span className="text-xs text-stone-400" aria-live="polite">
+        <span className="text-xs text-stone-500" aria-live="polite">
           {report ? `Last checked ${formatRelativeTime(report.checkedAt)}` : ""}
         </span>
       </div>
       {precacheMessage && (
-        <p className="text-xs text-stone-300 mt-2" role="status" aria-live="polite">
+        <p className="text-xs text-stone-300 mt-3 px-3 py-2 rounded-lg bg-surface-2 border border-surface-border" role="status" aria-live="polite">
           {precacheMessage}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -475,32 +621,32 @@ function ReadinessRow({
   status: Status;
   help: string;
 }) {
-  const { dot, copy } = renderStatus(status);
+  const { dot, copy, copyClass } = renderStatus(status);
   return (
     <li
-      className="flex items-start gap-3 bg-stone-950/80 border border-stone-700/80 rounded-lg p-3"
+      className="flex items-start gap-3 surface-card border border-surface-border rounded-xl p-3"
       aria-label={`${label}: ${copy}. ${help}`}
     >
-      <span aria-hidden="true" className={`mt-1 inline-block w-3 h-3 rounded-full ${dot}`} />
+      <span aria-hidden="true" className={`mt-1.5 inline-block w-2.5 h-2.5 rounded-full ${dot} shadow-[0_0_8px_currentColor]`} />
       <div className="flex-1 min-w-0" aria-hidden="true">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <span className="text-stone-50 font-medium">{label}</span>
-          <span className="text-sm text-stone-300">{copy}</span>
+          <span className={`text-sm ${copyClass}`}>{copy}</span>
         </div>
-        <p className="text-xs text-stone-400 mt-1">{help}</p>
+        <p className="text-xs text-stone-500 mt-1 leading-relaxed">{help}</p>
       </div>
     </li>
   );
 }
 
-function renderStatus(status: Status): { dot: string; copy: string } {
+function renderStatus(status: Status): { dot: string; copy: string; copyClass: string } {
   if (status === "cached") {
-    return { dot: "bg-emerald-400", copy: "Cached" };
+    return { dot: "bg-emerald-400 text-emerald-400", copy: "Cached", copyClass: "text-emerald-300" };
   }
   if (status === "missing") {
-    return { dot: "bg-yellow-400", copy: "Not cached yet" };
+    return { dot: "bg-amber-400 text-amber-400", copy: "Not cached yet", copyClass: "text-amber-300/90" };
   }
-  return { dot: "bg-stone-500", copy: "Unknown" };
+  return { dot: "bg-stone-500 text-stone-500", copy: "Unknown", copyClass: "text-stone-400" };
 }
 
 function formatRelativeTime(at: number): string {
