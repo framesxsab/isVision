@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildTactileFrames,
+  parseCompactProtocol,
   serializeCompactFrames,
   serializeFrames,
   translateGrade1Debug,
@@ -42,6 +43,65 @@ describe("tactile braille frame generation", () => {
         "F 1 1 3",
         "END",
       ].join("\n")
+    );
+  });
+});
+
+describe("parseCompactProtocol", () => {
+  it("round-trips serialized frames back into the same masks and options", () => {
+    const original = buildTactileFrames(translateGrade1Debug("hello"), 4);
+    const serialized = serializeCompactFrames(original, { holdMs: 700, blankBetweenFrames: true });
+
+    const parsed = parseCompactProtocol(serialized);
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.options).toEqual({ holdMs: 700, blankBetweenFrames: true });
+    expect(parsed.frames.map((f) => f.cells.map((c) => c.mask))).toEqual(
+      original.map((f) => f.cells.map((c) => c.mask))
+    );
+    expect(parsed.frames.map((f) => f.cellStart)).toEqual(original.map((f) => f.cellStart));
+  });
+
+  it("reports the exact line number for malformed input", () => {
+    const input = [
+      "# header",
+      "CFG hold_ms=900 blank=1",
+      "F 0 0 3",
+      "F 1 0 not-a-number",
+      "F 2 0 99",
+      "END",
+    ].join("\n");
+
+    const parsed = parseCompactProtocol(input);
+
+    expect(parsed.errors.map((e) => e.line)).toEqual([4, 5]);
+    expect(parsed.errors[0]?.message).toMatch(/Mask must be an integer/);
+    expect(parsed.errors[1]?.message).toMatch(/Mask must be an integer/);
+    expect(parsed.frames).toHaveLength(1);
+  });
+
+  it("flags unknown directives, missing END, and content after END", () => {
+    const noEnd = parseCompactProtocol("CFG hold_ms=500 blank=0\nF 0 0 1");
+    expect(noEnd.errors.some((e) => /Missing END/.test(e.message))).toBe(true);
+
+    const unknown = parseCompactProtocol("WAT 1 2 3\nEND");
+    expect(unknown.errors[0]?.message).toMatch(/Unknown directive/);
+
+    const trailing = parseCompactProtocol("F 0 0 1\nEND\nF 1 0 2");
+    expect(trailing.errors.some((e) => /after END/.test(e.message))).toBe(true);
+  });
+
+  it("validates CFG tokens", () => {
+    const parsed = parseCompactProtocol(
+      ["CFG hold_ms=-1 blank=2 weird=1", "F 0 0 1", "END"].join("\n")
+    );
+    const messages = parsed.errors.map((e) => e.message);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/hold_ms/),
+        expect.stringMatching(/blank must be 0 or 1/),
+        expect.stringMatching(/Unknown CFG key/),
+      ])
     );
   });
 });

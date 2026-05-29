@@ -153,3 +153,130 @@ export function serializeCompactFrames(
 export function getFrameMasks(frame: TactileFrame): number[] {
   return frame.cells.map((cell) => cell.mask);
 }
+
+export interface CompactProtocolError {
+  line: number;
+  content: string;
+  message: string;
+}
+
+export interface ParsedCompactProtocol {
+  frames: TactileFrame[];
+  options: CompactProtocolOptions;
+  errors: CompactProtocolError[];
+}
+
+// Inverse of serializeCompactFrames. Permissive about whitespace and blank
+// lines, strict about token shape: we want the emulator to point at the exact
+// line a contributor mistyped, not just say "bad input".
+export function parseCompactProtocol(text: string): ParsedCompactProtocol {
+  const frames: TactileFrame[] = [];
+  const errors: CompactProtocolError[] = [];
+  const options: CompactProtocolOptions = { holdMs: 900, blankBetweenFrames: true };
+  let sawEnd = false;
+  let cfgSeen = false;
+
+  const lines = text.split(/\r?\n/);
+
+  lines.forEach((raw, idx) => {
+    const lineNo = idx + 1;
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+
+    if (sawEnd) {
+      errors.push({ line: lineNo, content: raw, message: "Content after END marker is ignored." });
+      return;
+    }
+
+    const [head, ...rest] = line.split(/\s+/);
+
+    if (head === "CFG") {
+      if (cfgSeen) {
+        errors.push({ line: lineNo, content: raw, message: "Duplicate CFG line." });
+        return;
+      }
+      cfgSeen = true;
+      for (const token of rest) {
+        const eq = token.indexOf("=");
+        if (eq < 0) {
+          errors.push({ line: lineNo, content: raw, message: `Bad CFG token "${token}" (expected key=value).` });
+          continue;
+        }
+        const key = token.slice(0, eq);
+        const value = token.slice(eq + 1);
+        if (key === "hold_ms") {
+          const n = Number(value);
+          if (!Number.isFinite(n) || n < 0) {
+            errors.push({ line: lineNo, content: raw, message: `hold_ms must be a non-negative number, got "${value}".` });
+          } else {
+            options.holdMs = n;
+          }
+        } else if (key === "blank") {
+          if (value !== "0" && value !== "1") {
+            errors.push({ line: lineNo, content: raw, message: `blank must be 0 or 1, got "${value}".` });
+          } else {
+            options.blankBetweenFrames = value === "1";
+          }
+        } else {
+          errors.push({ line: lineNo, content: raw, message: `Unknown CFG key "${key}".` });
+        }
+      }
+      return;
+    }
+
+    if (head === "B") {
+      // Blank-frame marker — informational; the player inserts blanks based
+      // on the blankBetweenFrames option, so we don't need to materialize one.
+      return;
+    }
+
+    if (head === "END") {
+      sawEnd = true;
+      return;
+    }
+
+    if (head === "F") {
+      if (rest.length < 2) {
+        errors.push({ line: lineNo, content: raw, message: "Frame line needs index, cellStart, and at least one mask." });
+        return;
+      }
+      const [idxToken, startToken, ...maskTokens] = rest;
+      const frameIndex = Number(idxToken);
+      const cellStart = Number(startToken);
+      if (!Number.isInteger(frameIndex) || frameIndex < 0) {
+        errors.push({ line: lineNo, content: raw, message: `Frame index must be a non-negative integer, got "${idxToken}".` });
+        return;
+      }
+      if (!Number.isInteger(cellStart) || cellStart < 0) {
+        errors.push({ line: lineNo, content: raw, message: `cellStart must be a non-negative integer, got "${startToken}".` });
+        return;
+      }
+      const cells: BrailleCell[] = [];
+      let maskError = false;
+      for (const tok of maskTokens) {
+        const mask = Number(tok);
+        if (!Number.isInteger(mask) || mask < 0 || mask > 63) {
+          errors.push({ line: lineNo, content: raw, message: `Mask must be an integer 0-63, got "${tok}".` });
+          maskError = true;
+          break;
+        }
+        cells.push(createCell(mask, ""));
+      }
+      if (maskError) return;
+      if (cells.length === 0) {
+        errors.push({ line: lineNo, content: raw, message: "Frame has no cells." });
+        return;
+      }
+      frames.push({ type: "frame", mode: "text", index: frameIndex, cellStart, cells });
+      return;
+    }
+
+    errors.push({ line: lineNo, content: raw, message: `Unknown directive "${head}".` });
+  });
+
+  if (!sawEnd && frames.length > 0) {
+    errors.push({ line: lines.length, content: "", message: "Missing END marker." });
+  }
+
+  return { frames, options, errors };
+}

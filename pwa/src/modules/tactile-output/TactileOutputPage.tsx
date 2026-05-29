@@ -674,6 +674,17 @@ export default function TactileOutputPage() {
             className="w-full min-h-48 bg-gray-950 text-gray-200 border border-gray-700 rounded-xl px-3 py-3 font-mono text-xs"
             aria-label="Generated tactile frame output"
           />
+          {outputFormat === "compact" && (
+            <div className="mt-2">
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/hardware-emulator")}
+                aria-label="Open the hardware emulator to preview this output without a device"
+              >
+                Open hardware emulator
+              </Button>
+            </div>
+          )}
         </section>
       </div>
 
