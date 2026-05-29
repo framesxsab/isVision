@@ -18,7 +18,8 @@
     "preview": "vite preview",
     "server": "node server/index.mjs",
     "test": "vitest run",
-    "test:a11y": "playwright test"
+    "test:a11y": "playwright test",
+    "audit:mobile": "node scripts/mobile-audit.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.5",
