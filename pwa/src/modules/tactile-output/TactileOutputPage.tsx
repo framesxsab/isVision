@@ -430,7 +430,7 @@ export default function TactileOutputPage() {
               onClick={() => setTranslatorMode("g1")}
               className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
                 translatorMode === "g1"
-                  ? "bg-primary-600 border-primary-300 text-white"
+                  ? "bg-primary-700 border-primary-300 text-white"
                   : "bg-gray-900 border-gray-700 text-gray-300"
               }`}
               aria-pressed={translatorMode === "g1"}
@@ -442,7 +442,7 @@ export default function TactileOutputPage() {
               onClick={() => setTranslatorMode("g2")}
               className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
                 translatorMode === "g2"
-                  ? "bg-primary-600 border-primary-300 text-white"
+                  ? "bg-primary-700 border-primary-300 text-white"
                   : "bg-gray-900 border-gray-700 text-gray-300"
               }`}
               aria-pressed={translatorMode === "g2"}
@@ -473,7 +473,7 @@ export default function TactileOutputPage() {
                     onClick={() => setLanguage(option.id)}
                     className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
                       language === option.id
-                        ? "bg-primary-600 border-primary-300 text-white"
+                        ? "bg-primary-700 border-primary-300 text-white"
                         : "bg-gray-900 border-gray-700 text-gray-300"
                     }`}
                   >
@@ -521,7 +521,7 @@ export default function TactileOutputPage() {
                 onClick={() => setGroupSize(size)}
                 className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
                   groupSize === size
-                    ? "bg-primary-600 border-primary-300 text-white"
+                    ? "bg-primary-700 border-primary-300 text-white"
                     : "bg-gray-900 border-gray-700 text-gray-300"
                 }`}
                 aria-pressed={groupSize === size}
@@ -542,7 +542,7 @@ export default function TactileOutputPage() {
               onClick={() => setOutputFormat("compact")}
               className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
                 outputFormat === "compact"
-                  ? "bg-primary-600 border-primary-300 text-white"
+                  ? "bg-primary-700 border-primary-300 text-white"
                   : "bg-gray-900 border-gray-700 text-gray-300"
               }`}
               aria-pressed={outputFormat === "compact"}
@@ -554,7 +554,7 @@ export default function TactileOutputPage() {
               onClick={() => setOutputFormat("json")}
               className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
                 outputFormat === "json"
-                  ? "bg-primary-600 border-primary-300 text-white"
+                  ? "bg-primary-700 border-primary-300 text-white"
                   : "bg-gray-900 border-gray-700 text-gray-300"
               }`}
               aria-pressed={outputFormat === "json"}

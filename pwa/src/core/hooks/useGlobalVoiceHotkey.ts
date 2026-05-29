@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { matchCommandWithAlternatives } from "@/modules/voice-nav/commandRegistry";
+import { useSettingsStore } from "@/core/store/settingsStore";
 
 /**
  * Global hotkey (F6) to activate voice commands from ANY page.
@@ -25,9 +26,16 @@ export function useGlobalVoiceHotkey() {
       try {
         const result = await speechRecognition.listenWithAlternatives();
         const match = matchCommandWithAlternatives(result.alternatives);
+        // Read the setting at the moment the command lands, not at mount —
+        // keeps the hotkey honoring a toggle the user just flipped without
+        // re-subscribing the effect on every render.
+        const confirmAloud = useSettingsStore.getState().voiceConfirmAloud;
 
         if (match && match.confidence >= 0.65) {
-          speechEngine.interrupt(match.command.description);
+          const navDelayMs = confirmAloud ? 400 : 0;
+          if (confirmAloud) {
+            speechEngine.interrupt(match.command.description);
+          }
 
           // Handle navigation commands directly
           const navMap: Record<string, string> = {
@@ -41,7 +49,8 @@ export function useGlobalVoiceHotkey() {
 
           const path = navMap[match.command.action];
           if (path) {
-            setTimeout(() => navigate(path), 400);
+            if (navDelayMs > 0) setTimeout(() => navigate(path), navDelayMs);
+            else navigate(path);
           } else if (match.command.action === "stop_speech") {
             speechEngine.stop();
           } else if (match.command.action === "navigate_back") {

@@ -46,6 +46,12 @@ interface SettingsState {
   // current page session — never persisted to disk regardless of this flag.
   visionRetainHistory: boolean;
 
+  // Voice navigation
+  // When true (default), recognized commands are echoed back ("I heard X")
+  // before execution — builds trust on misfires. Power users can turn this
+  // off to skip the ~1.4s confirmation delay.
+  voiceConfirmAloud: boolean;
+
   // App state
   onboardingComplete: boolean;
   setupStatus: SetupStatus;
@@ -61,6 +67,7 @@ interface SettingsState {
   setHapticEnabled: (enabled: boolean) => void;
   setSpatialAudioEnabled: (enabled: boolean) => void;
   setVisionRetainHistory: (enabled: boolean) => void;
+  setVoiceConfirmAloud: (enabled: boolean) => void;
   completeOnboarding: () => void;
   setSetupStatus: (patch: Partial<SetupStatus>) => void;
   resetSetupStatus: () => void;
@@ -83,6 +90,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       visionRetainHistory: true,
 
+      voiceConfirmAloud: true,
+
       onboardingComplete: false,
       setupStatus: { ...DEFAULT_SETUP_STATUS },
       lastSession: null,
@@ -96,6 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
       setHapticEnabled: (enabled) => set({ hapticEnabled: enabled }),
       setSpatialAudioEnabled: (enabled) => set({ spatialAudioEnabled: enabled }),
       setVisionRetainHistory: (enabled) => set({ visionRetainHistory: enabled }),
+      setVoiceConfirmAloud: (enabled) => set({ voiceConfirmAloud: enabled }),
       completeOnboarding: () => set({ onboardingComplete: true }),
       setSetupStatus: (patch) =>
         set((state) => ({ setupStatus: { ...state.setupStatus, ...patch } })),
@@ -104,10 +114,11 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "isvisible-settings",
-      version: 3,
+      version: 4,
       // v0 → v1: add setupStatus default.
       // v1 → v2: add visionRetainHistory default.
       // v2 → v3: add lastSession default (null).
+      // v3 → v4: add voiceConfirmAloud default (true).
       // Keep each step tolerant — any missing field just gets the default appended.
       migrate: (persisted, version) => {
         const base = (persisted ?? {}) as Partial<SettingsState>;
@@ -120,6 +131,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 3 || next.lastSession === undefined) {
           next.lastSession = null;
+        }
+        if (version < 4 || typeof next.voiceConfirmAloud !== "boolean") {
+          next.voiceConfirmAloud = true;
         }
         return next as SettingsState;
       },

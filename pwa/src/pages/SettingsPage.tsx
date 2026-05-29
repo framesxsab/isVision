@@ -376,6 +376,15 @@ export default function SettingsPage() {
           <Button onClick={testSpeech} variant="secondary" className="w-full">
             Test speech
           </Button>
+
+          <div className="pt-4 mt-1 border-t border-surface-border">
+            <ToggleRow
+              checked={settings.voiceConfirmAloud}
+              onChange={(v) => settings.setVoiceConfirmAloud(v)}
+              label="Confirm voice commands aloud"
+              hint="Speak 'I heard X' before running a recognized command. Turn off to skip the confirmation delay."
+            />
+          </div>
         </div>
       </Panel>
 

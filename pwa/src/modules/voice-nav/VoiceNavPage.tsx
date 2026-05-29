@@ -38,6 +38,7 @@ export default function VoiceNavPage() {
   const setSpeechRate = useSettingsStore((s) => s.setSpeechRate);
   const speechRate = useSettingsStore((s) => s.speechRate);
   const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
+  const voiceConfirmAloud = useSettingsStore((s) => s.voiceConfirmAloud);
 
   useEffect(() => {
     announce("Voice Navigation is ready. Press and hold the button to speak a command.");
@@ -149,18 +150,26 @@ export default function VoiceNavPage() {
 
       if (match && match.confidence >= 0.65) {
         earcons.success();
-        // Echo back what we heard *before* acting. This is the trust loop:
-        // a silent misfire used to feel like the app was broken; now the
-        // user always knows the system understood them, and what it's about
-        // to do, before anything happens.
-        const echo = `I heard "${result.transcript}". ${match.command.description}.`;
-        announce(echo);
-        speechEngine.interrupt(echo);
-        // Wait long enough for most of the echo to play, then run the
-        // action silently — the destination page typically speaks its own
-        // greeting on mount, so suppressing the duplicate keeps the audio
-        // experience clean.
-        setTimeout(() => executeAction(match.command.action, { silent: true }), 1400);
+        if (voiceConfirmAloud) {
+          // Echo back what we heard *before* acting. This is the trust loop:
+          // a silent misfire used to feel like the app was broken; now the
+          // user always knows the system understood them, and what it's about
+          // to do, before anything happens.
+          const echo = `I heard "${result.transcript}". ${match.command.description}.`;
+          announce(echo);
+          speechEngine.interrupt(echo);
+          // Wait long enough for most of the echo to play, then run the
+          // action silently — the destination page typically speaks its own
+          // greeting on mount, so suppressing the duplicate keeps the audio
+          // experience clean.
+          setTimeout(() => executeAction(match.command.action, { silent: true }), 1400);
+        } else {
+          // Confirmation disabled: run immediately and let the action's own
+          // speech ("Opening Reader.") serve as feedback. The aria-live area
+          // still shows the recognized transcript via setLastTranscript.
+          announce(`Running ${match.command.description}.`);
+          executeAction(match.command.action);
+        }
       } else {
         earcons.error();
         speechEngine.interrupt(
@@ -176,7 +185,7 @@ export default function VoiceNavPage() {
       }
       speechEngine.interrupt(msg);
     }
-  }, [announce, executeAction, setSetupStatus]);
+  }, [announce, executeAction, setSetupStatus, voiceConfirmAloud]);
 
   const openSetup = useCallback(() => {
     navigate("/onboarding?restart=1");

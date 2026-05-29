@@ -4,6 +4,16 @@
  * Handles the Chrome mobile bug where long utterances silently stop
  * by chunking text at sentence boundaries (~200 chars per chunk).
  * Provides queue management and interrupt capability.
+ *
+ * Priority model:
+ *   - 'status' (default) — queues behind anything already playing. Used
+ *     for aria-live announcements, mount greetings, progress updates.
+ *   - 'user' — preempts the current utterance and the queue. Used for
+ *     direct user action (button taps, voice commands, F6 hotkey).
+ *
+ * All call sites should go through `speak()` with an explicit priority
+ * rather than mixing `speak`/`interrupt` ad-hoc. `interrupt()` and the
+ * default-priority form are kept as thin wrappers for back-compat.
  */
 
 type SpeechSettings = {
@@ -14,6 +24,12 @@ type SpeechSettings = {
 };
 
 type SpeechEventHandler = (event: "start" | "end" | "error") => void;
+
+export type SpeechPriority = "user" | "status";
+
+export interface SpeakOptions {
+  priority?: SpeechPriority;
+}
 
 const MAX_CHUNK_LENGTH = 200;
 
@@ -67,12 +83,21 @@ class SpeechEngineImpl {
   }
 
   /**
-   * Add text to queue and start speaking.
-   * Text is automatically chunked at sentence boundaries.
+   * Queue text for speech. Text is chunked at sentence boundaries.
+   *
+   * `priority: 'status'` (default) appends to the queue.
+   * `priority: 'user'` cancels in-flight speech and the queue, then
+   * speaks the new text immediately — same as `interrupt()`.
    */
-  speak(text: string) {
+  speak(text: string, options?: SpeakOptions) {
     this.init();
     if (!this.synth) return;
+
+    if (options?.priority === "user") {
+      this.synth.cancel();
+      this.queue = [];
+      this.isSpeaking = false;
+    }
 
     const chunks = this.chunkText(text);
     this.queue.push(...chunks);
@@ -84,19 +109,11 @@ class SpeechEngineImpl {
 
   /**
    * Cancel everything and speak this immediately.
-   * Used by Touch Explorer for instant feedback.
+   * Equivalent to `speak(text, { priority: 'user' })`. Kept as a named
+   * convenience for the common "user just acted" case.
    */
   interrupt(text: string) {
-    this.init();
-    if (!this.synth) return;
-
-    this.synth.cancel();
-    this.queue = [];
-    this.isSpeaking = false;
-
-    const chunks = this.chunkText(text);
-    this.queue.push(...chunks);
-    this.processQueue();
+    this.speak(text, { priority: "user" });
   }
 
   /** Stop all speech and clear the queue. */
@@ -229,3 +246,10 @@ class SpeechEngineImpl {
 
 // Singleton instance
 export const speechEngine = new SpeechEngineImpl();
+
+// Test-only factory: lets unit tests stand up a clean engine against
+// mocked globals without poisoning the singleton's state. Not exported
+// from the module's public surface — tests import this file directly.
+export function createSpeechEngineForTest() {
+  return new SpeechEngineImpl();
+}

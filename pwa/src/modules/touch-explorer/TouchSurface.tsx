@@ -21,7 +21,7 @@ export function TouchSurface() {
       <section aria-label="Sample buttons">
         <h3 className="text-xl font-semibold text-white mb-3">Buttons</h3>
         <div className="flex flex-wrap gap-3">
-          <button className="bg-primary-600 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">
+          <button className="bg-primary-700 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">
             Submit form
           </button>
           <button className="bg-green-700 text-white px-5 py-3 rounded-xl font-semibold min-h-touch">

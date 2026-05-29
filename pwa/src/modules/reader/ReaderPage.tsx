@@ -3,7 +3,7 @@
  * URL input at top, article content in center, reading controls at bottom.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useReader } from "./useReader";
 import { Button } from "@/components/Button";
@@ -31,6 +31,11 @@ export default function ReaderPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [urlInput, setUrlInput] = useState("");
+  const articleRef = useRef<HTMLElement | null>(null);
+  // Text the user has highlighted inside the article. Empty when no
+  // selection or the selection sits outside the article body. Drives the
+  // visibility of the "Send selection to Tactile Lab" handoff.
+  const [selectedText, setSelectedText] = useState("");
   const announce = useAnnounce();
   const fontSize = useSettingsStore((s) => s.fontSize);
   const highContrast = useSettingsStore((s) => s.highContrast);
@@ -152,6 +157,52 @@ export default function ReaderPage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [announce, togglePlayPause, nextChunk, prevChunk, setSpeechRate]);
 
+  // Track in-article text selections so the Tactile handoff can offer a
+  // "selected text" mode. We only count selections that actually intersect
+  // the article body — clicking around the toolbar shouldn't surface a
+  // bogus "send selection" CTA. The listener is global because the
+  // selection range can start outside the article (e.g. triple-click that
+  // bleeds into surrounding nodes) and still meaningfully intersect.
+  useEffect(() => {
+    function readSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        setSelectedText("");
+        return;
+      }
+      const text = sel.toString().trim();
+      if (!text) {
+        setSelectedText("");
+        return;
+      }
+      const article = articleRef.current;
+      if (!article) {
+        setSelectedText("");
+        return;
+      }
+      // Walk the selection's ranges and see if any of them touches the
+      // article subtree. Range.intersectsNode is the cheapest reliable
+      // check and handles selections that start before / end after the
+      // article container.
+      for (let i = 0; i < sel.rangeCount; i++) {
+        if (sel.getRangeAt(i).intersectsNode(article)) {
+          setSelectedText(text);
+          return;
+        }
+      }
+      setSelectedText("");
+    }
+    document.addEventListener("selectionchange", readSelection);
+    return () => document.removeEventListener("selectionchange", readSelection);
+  }, [htmlContent]);
+
+  const sendSelectionToTactile = useCallback(() => {
+    if (!selectedText) return;
+    pushTactileHandoff(selectedText, "Reader selection");
+    speechEngine.interrupt("Sending selected text to Tactile Lab.");
+    navigate("/tactile-output");
+  }, [navigate, selectedText]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (urlInput.trim()) {
@@ -225,7 +276,7 @@ export default function ReaderPage() {
           )}
 
           {chunks.length > 0 && (
-            <div className="mb-4">
+            <div className="mb-4 flex flex-wrap gap-2">
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -243,6 +294,16 @@ export default function ReaderPage() {
               >
                 <IconBraille className="w-5 h-5 inline mr-1" /> Send to Tactile Lab
               </Button>
+              {selectedText && (
+                <Button
+                  variant="secondary"
+                  onClick={sendSelectionToTactile}
+                  aria-label={`Send the ${selectedText.length} selected characters to the Tactile Lab`}
+                  data-testid="send-selection-to-tactile"
+                >
+                  <IconBraille className="w-5 h-5 inline mr-1" /> Send selection ({selectedText.length} chars)
+                </Button>
+              )}
             </div>
           )}
 
@@ -278,6 +339,7 @@ export default function ReaderPage() {
 
           {htmlContent ? (
             <article
+              ref={articleRef}
               className={`prose prose-invert max-w-none leading-relaxed ${
                 highContrast ? "text-white" : "text-gray-200"
               }`}

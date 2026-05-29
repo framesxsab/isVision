@@ -275,7 +275,7 @@ export default function TactileDrillPage() {
                 onClick={() => setMode(option.id)}
                 className={`min-h-touch rounded-lg border px-1 py-2 font-semibold text-xs ${
                   mode === option.id
-                    ? "bg-primary-600 border-primary-300 text-white"
+                    ? "bg-primary-700 border-primary-300 text-white"
                     : "bg-gray-900 border-gray-700 text-gray-300"
                 }`}
               >
@@ -304,7 +304,7 @@ export default function TactileDrillPage() {
                 onClick={() => setDifficulty(option.id)}
                 className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
                   difficulty === option.id
-                    ? "bg-primary-600 border-primary-300 text-white"
+                    ? "bg-primary-700 border-primary-300 text-white"
                     : "bg-gray-900 border-gray-700 text-gray-300"
                 }`}
               >
@@ -366,7 +366,7 @@ export default function TactileDrillPage() {
                 onClick={() => setSpeechMode(option.id)}
                 className={`min-h-touch rounded-lg border px-2 py-2 font-semibold text-sm ${
                   speechMode === option.id
-                    ? "bg-primary-600 border-primary-300 text-white"
+                    ? "bg-primary-700 border-primary-300 text-white"
                     : "bg-gray-900 border-gray-700 text-gray-300"
                 }`}
               >
