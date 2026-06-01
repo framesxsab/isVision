@@ -3,6 +3,7 @@ import {
   matchCommand,
   matchCommandWithAlternatives,
   normalizeTranscript,
+  wordCoverageScore,
 } from "./commandRegistry";
 
 describe("normalizeTranscript", () => {
@@ -69,6 +70,42 @@ describe("matchCommand", () => {
   it("returns null for empty input", () => {
     expect(matchCommand("")).toBeNull();
     expect(matchCommand("please the")).toBeNull();
+  });
+});
+
+describe("wordCoverageScore", () => {
+  it("returns 0 when coverage is below 75% (one of two words missing)", () => {
+    // "open reader" needs both "open" and "reader"; input only has "open" → 50% → 0
+    expect(wordCoverageScore("open", "open reader")).toBe(0);
+  });
+
+  it("returns ~0.90 when 100% of pattern words match with no noise", () => {
+    // Exact words, no extra noise → maximum score
+    const score = wordCoverageScore("open reader", "open reader");
+    expect(score).toBeGreaterThan(0.80);
+    expect(score).toBeLessThanOrEqual(0.90);
+  });
+
+  it("penalizes extra noise words in the input", () => {
+    // "help" found in input, but 3 extra words → penalty applied
+    const clean = wordCoverageScore("help", "help");
+    const noisy = wordCoverageScore("help me please now", "help");
+    expect(noisy).toBeLessThan(clean);
+  });
+
+  it("returns 0 for an empty pattern", () => {
+    expect(wordCoverageScore("open reader", "")).toBe(0);
+  });
+
+  it("returns 0 for empty input", () => {
+    expect(wordCoverageScore("", "open reader")).toBe(0);
+  });
+
+  it("handles natural speech that contains all pattern keywords", () => {
+    // "please open the accessible reader now" → normalised → "open accessible reader"
+    // pattern "open reader" words ["open","reader"] both present → coverage match
+    const score = wordCoverageScore("open accessible reader", "open reader");
+    expect(score).toBeGreaterThan(0);
   });
 });
 

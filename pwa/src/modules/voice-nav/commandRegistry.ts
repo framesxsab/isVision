@@ -248,7 +248,7 @@ const patternIndex = commands
  * returns a confidence in [0.75, 0.90] penalised slightly for extra words
  * in the input that aren't part of the pattern (noise).
  */
-function wordCoverageScore(inputNormalized: string, pattern: string): number {
+export function wordCoverageScore(inputNormalized: string, pattern: string): number {
   const inputWords = new Set(inputNormalized.split(/\s+/).filter(Boolean));
   const patternWords = normalizeTranscript(pattern)
     .split(/\s+/)

@@ -22,12 +22,16 @@ interface IntentResponse {
 
 export async function describeImage(
   base64Image: string,
-  context?: string
+  context?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const response = await fetch(API_VISION, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ base64Image, context }),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(35_000)])
+      : AbortSignal.timeout(35_000),
   });
 
   const data = (await response.json().catch(() => ({}))) as VisionResponse;

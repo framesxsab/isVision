@@ -178,8 +178,15 @@ export default function TactileOutputPage() {
     setTranslatorError(null);
 
     // Dynamic import keeps the ~1.6 MB Liblouis WASM off the initial bundle.
-    import("./liblouisAdapter")
-      .then(({ translateWithTable }) => translateWithTable(text, language))
+    // Race against a 30s timeout so a stalled WASM download shows an error
+    // instead of leaving the UI permanently in "Loading Liblouis…" state.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Liblouis took too long to load. Check your connection and press Retry.")), 30_000)
+    );
+    Promise.race([
+      import("./liblouisAdapter").then(({ translateWithTable }) => translateWithTable(text, language)),
+      timeout,
+    ])
       .then((result) => {
         if (cancelled) return;
         setCells(result);

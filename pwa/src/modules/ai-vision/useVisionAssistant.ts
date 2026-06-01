@@ -26,10 +26,10 @@ interface HistoryEntry {
 const HOLD_STILL_DELAY_MS = 700;
 
 // Minimum sharpness score (variance of Laplacian) before we accept a frame.
-// Below this the image is almost certainly motion-blurred or out of focus.
-// Tuned empirically against a webcam — feel free to raise if false positives
-// become a problem.
-const MIN_SHARPNESS = 30;
+// 10 is deliberately permissive — low-light or low-contrast scenes score
+// lower than a brightly-lit desktop. We still pick the sharpest of 3 frames,
+// but we don't reject outright unless the image is essentially blank (< 10).
+const MIN_SHARPNESS = 10;
 
 export function useVisionAssistant() {
   const [state, setState] = useState<VisionState>("idle");
@@ -38,6 +38,7 @@ export function useVisionAssistant() {
   const [error, setError] = useState<string | null>(null);
   const announce = useAnnounce();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const captureAbortRef = useRef<AbortController | null>(null);
   const retainHistory = useSettingsStore((s) => s.visionRetainHistory);
   // Hold the current retain setting in a ref so capture handlers — which are
   // captured at hook-init time — always see the latest user choice without
@@ -47,18 +48,38 @@ export function useVisionAssistant() {
 
   const startCamera = useCallback(async (video: HTMLVideoElement) => {
     videoRef.current = video;
+
+    // Cascade through increasingly permissive constraints. The `min` values
+    // in the original code threw OverconstrainedError on portrait mobile because
+    // many phones report their smallest supported dimension as width in portrait.
+    const attempts: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+      { video: { facingMode: { ideal: "environment" } }, audio: false },
+      { video: true, audio: false },
+    ];
+
+    let stream: MediaStream | null = null;
+    let lastErr: unknown;
+    for (const constraints of attempts) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      } catch (err) {
+        lastErr = err;
+        const name = err instanceof Error ? err.name : "";
+        // Only retry on constraint/device errors; permission denial is final.
+        if (name === "NotAllowedError" || name === "PermissionDeniedError") break;
+      }
+    }
+
+    if (!stream) {
+      const msg = explainCameraError(lastErr);
+      setError(msg);
+      speechEngine.interrupt(msg);
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          // Higher resolution gives the vision model more detail to work with.
-          // The model resizes anyway, but a sharp 1920x1080 source beats a
-          // soft 640x480 one — especially for text or distant objects.
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 },
-        },
-        audio: false,
-      });
       video.srcObject = stream;
       video.setAttribute("playsinline", "true");
       await video.play();
@@ -111,6 +132,8 @@ export function useVisionAssistant() {
   }, []);
 
   const stopCamera = useCallback(() => {
+    captureAbortRef.current?.abort();
+    captureAbortRef.current = null;
     if (videoRef.current?.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach((t) => t.stop());
@@ -169,8 +192,13 @@ export function useVisionAssistant() {
       announce("Analyzing image");
       speechEngine.interrupt("Analyzing.");
 
+      const abort = new AbortController();
+      captureAbortRef.current = abort;
+
       try {
-        const result = await describeImage(frame.base64, context);
+        const result = await describeImage(frame.base64, context, abort.signal);
+        if (abort.signal.aborted) return;
+
         setDescription(result);
         setError(null);
 
@@ -189,14 +217,19 @@ export function useVisionAssistant() {
         speechEngine.interrupt(result);
         setState("idle");
       } catch (err) {
+        if (abort.signal.aborted) return;
         const msg =
-          err instanceof Error
-            ? `Error: ${err.message}`
-            : "Could not analyze image. Check your internet connection.";
+          err instanceof Error && err.name === "TimeoutError"
+            ? "Vision service took too long. Check your connection and try again."
+            : err instanceof Error
+              ? `Error: ${err.message}`
+              : "Could not analyze image. Check your internet connection.";
         setError(msg);
         earcons.error();
         setState("idle");
         speechEngine.interrupt(msg);
+      } finally {
+        if (captureAbortRef.current === abort) captureAbortRef.current = null;
       }
     },
     [state, announce]
