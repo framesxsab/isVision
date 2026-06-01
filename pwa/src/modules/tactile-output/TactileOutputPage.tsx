@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import {
-  IconArrowLeft,
+  PageShell,
+  toggleActive,
+  toggleInactive,
+  textareaClass,
+} from "@/components/PageShell";
+import {
   IconBraille,
   IconClipboard,
   IconRefresh,
@@ -346,350 +351,338 @@ export default function TactileOutputPage() {
   sendSerialRef.current = sendSerial;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
-          </Button>
-          <h1 className="text-lg font-bold text-white">Tactile Lab</h1>
-          {/* Visual-only mirror of the status. The AriaLiveProvider already owns
-              the polite live region — duplicating it here would double-announce. */}
-          <span className="text-sm text-gray-400 w-20 text-right" aria-hidden="true">
-            {status}
-          </span>
-        </div>
-      </header>
-
-      <div className="flex-1 px-4 py-5 pb-nav-action max-w-lg mx-auto w-full space-y-6">
-        <section aria-labelledby="input-heading">
-          <div className="flex items-center justify-between mb-2">
-            <h2 id="input-heading" className="text-lg font-semibold text-white">
-              Source Text
-            </h2>
-            <div className="flex items-center gap-1" role="group" aria-label="Source actions">
-              <Button
-                variant="ghost"
-                onClick={pasteFromClipboard}
-                disabled={!clipboardReadCap.available}
-                aria-label={
-                  clipboardReadCap.available
-                    ? "Paste text from clipboard"
-                    : `Paste from clipboard unavailable. ${clipboardReadCap.suggestion}`
-                }
-              >
-                <IconClipboard className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Upload a text or markdown file"
-              >
-                <IconUpload className="w-5 h-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setText(DEFAULT_TEXT)}
-                aria-label="Reset text to the example phrase"
-              >
-                <IconRefresh className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-          <label htmlFor="tactile-source" className="sr-only">
-            Text to convert into braille tactile frames
-          </label>
-          <textarea
-            id="tactile-source"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="w-full min-h-36 bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 leading-relaxed"
-            spellCheck={false}
-          />
-          {/* Visually hidden file picker; the Upload button triggers click().
-              accept narrows the system picker, but the adapter still validates
-              extension + MIME because mobile browsers ignore accept hints. */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ALLOWED_FILE_EXTENSIONS.join(",") + ",text/*"}
-            className="sr-only"
-            onChange={onFileChosen}
-            aria-hidden="true"
-            tabIndex={-1}
-          />
-        </section>
-
-        <section aria-labelledby="translator-heading">
-          <h2 id="translator-heading" className="text-lg font-semibold text-white mb-3">
-            Translator
-          </h2>
-          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Braille translation mode">
-            <button
-              type="button"
-              onClick={() => setTranslatorMode("g1")}
-              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
-                translatorMode === "g1"
-                  ? "bg-primary-700 border-primary-300 text-white"
-                  : "bg-gray-900 border-gray-700 text-gray-300"
-              }`}
-              aria-pressed={translatorMode === "g1"}
-            >
-              Grade 1 (debug)
-            </button>
-            <button
-              type="button"
-              onClick={() => setTranslatorMode("g2")}
-              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
-                translatorMode === "g2"
-                  ? "bg-primary-700 border-primary-300 text-white"
-                  : "bg-gray-900 border-gray-700 text-gray-300"
-              }`}
-              aria-pressed={translatorMode === "g2"}
-              aria-describedby="translator-help"
-            >
-              Grade 2 (Liblouis)
-            </button>
-          </div>
-          <p id="translator-help" className="text-sm text-gray-300 mt-2">
-            Grade 1 uses the bundled debug mapping. Grade 2 loads Liblouis on demand —
-            first use downloads about 1.6 MB.
-          </p>
-
-          {translatorMode === "g2" && (
-            <fieldset className="mt-3">
-              <legend className="text-sm font-semibold text-gray-200 mb-2">Language</legend>
-              <div
-                className="grid grid-cols-3 gap-2"
-                role="radiogroup"
-                aria-label="Liblouis braille language"
-              >
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={language === option.id}
-                    onClick={() => setLanguage(option.id)}
-                    className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
-                      language === option.id
-                        ? "bg-primary-700 border-primary-300 text-white"
-                        : "bg-gray-900 border-gray-700 text-gray-300"
-                    }`}
+    <PageShell
+      title="Tactile Lab"
+      accent="rose"
+      headerRight={
+        <span className="text-sm text-stone-400" aria-hidden="true">{status}</span>
+      }
+    >
+      <div className="flex-1 px-4 py-5 pb-nav-action max-w-3xl mx-auto w-full">
+        <div className="lg:grid lg:grid-cols-2 lg:gap-8">
+          {/* Left column: Source Text, Translator, Frame Size, Device Protocol */}
+          <div className="space-y-6">
+            <section aria-labelledby="input-heading">
+              <div className="flex items-center justify-between mb-2">
+                <h2 id="input-heading" className="text-lg font-semibold text-white">
+                  Source Text
+                </h2>
+                <div className="flex items-center gap-1" role="group" aria-label="Source actions">
+                  <Button
+                    variant="ghost"
+                    onClick={pasteFromClipboard}
+                    disabled={!clipboardReadCap.available}
+                    aria-label={
+                      clipboardReadCap.available
+                        ? "Paste text from clipboard"
+                        : `Paste from clipboard unavailable. ${clipboardReadCap.suggestion}`
+                    }
                   >
-                    {option.label}
+                    <IconClipboard className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label="Upload a text or markdown file"
+                  >
+                    <IconUpload className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setText(DEFAULT_TEXT)}
+                    aria-label="Reset text to the example phrase"
+                  >
+                    <IconRefresh className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+              <label htmlFor="tactile-source" className="sr-only">
+                Text to convert into braille tactile frames
+              </label>
+              <textarea
+                id="tactile-source"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                className={`${textareaClass} min-h-36`}
+                spellCheck={false}
+              />
+              {/* Visually hidden file picker; the Upload button triggers click().
+                  accept narrows the system picker, but the adapter still validates
+                  extension + MIME because mobile browsers ignore accept hints. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ALLOWED_FILE_EXTENSIONS.join(",") + ",text/*"}
+                className="sr-only"
+                onChange={onFileChosen}
+                aria-hidden="true"
+                tabIndex={-1}
+              />
+            </section>
+
+            <section aria-labelledby="translator-heading">
+              <h2 id="translator-heading" className="text-lg font-semibold text-white mb-3">
+                Translator
+              </h2>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Braille translation mode">
+                <button
+                  type="button"
+                  onClick={() => setTranslatorMode("g1")}
+                  className={`px-3 py-2 ${
+                    translatorMode === "g1" ? toggleActive : toggleInactive
+                  }`}
+                  aria-pressed={translatorMode === "g1"}
+                >
+                  Grade 1 (debug)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTranslatorMode("g2")}
+                  className={`px-3 py-2 ${
+                    translatorMode === "g2" ? toggleActive : toggleInactive
+                  }`}
+                  aria-pressed={translatorMode === "g2"}
+                  aria-describedby="translator-help"
+                >
+                  Grade 2 (Liblouis)
+                </button>
+              </div>
+              <p id="translator-help" className="text-sm text-stone-300 mt-2">
+                Grade 1 uses the bundled debug mapping. Grade 2 loads Liblouis on demand —
+                first use downloads about 1.6 MB.
+              </p>
+
+              {translatorMode === "g2" && (
+                <fieldset className="mt-3">
+                  <legend className="text-sm font-semibold text-stone-200 mb-2">Language</legend>
+                  <div
+                    className="grid grid-cols-3 gap-2"
+                    role="radiogroup"
+                    aria-label="Liblouis braille language"
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={language === option.id}
+                        onClick={() => setLanguage(option.id)}
+                        className={`px-3 py-2 text-sm ${
+                          language === option.id ? toggleActive : toggleInactive
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              {translatorBusy && (
+                <p className="text-sm text-primary-300 mt-2" role="status" aria-live="polite">
+                  Translating with Liblouis…
+                </p>
+              )}
+              {translatorError && (
+                <div role="alert" className="mt-2">
+                  <p className="text-sm text-red-300">
+                    Liblouis failed ({translatorError}). Showing Grade 1 in the meantime.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setTranslatorError(null);
+                      setRetryToken((token) => token + 1);
+                    }}
+                    className="mt-2"
+                    aria-label="Retry the Liblouis translation"
+                  >
+                    Retry Liblouis
+                  </Button>
+                </div>
+              )}
+            </section>
+
+            <section aria-labelledby="frame-heading">
+              <h2 id="frame-heading" className="text-lg font-semibold text-white mb-3">
+                Frame Size
+              </h2>
+              <div className="grid grid-cols-3 gap-2" role="group" aria-label="Cells per frame">
+                {GROUP_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setGroupSize(size)}
+                    className={`px-3 py-2 ${
+                      groupSize === size ? toggleActive : toggleInactive
+                    }`}
+                    aria-pressed={groupSize === size}
+                  >
+                    {size} cell{size > 1 ? "s" : ""}
                   </button>
                 ))}
               </div>
-            </fieldset>
-          )}
+            </section>
 
-          {translatorBusy && (
-            <p className="text-sm text-primary-300 mt-2" role="status" aria-live="polite">
-              Translating with Liblouis…
-            </p>
-          )}
-          {translatorError && (
-            <div role="alert" className="mt-2">
-              <p className="text-sm text-red-300">
-                Liblouis failed ({translatorError}). Showing Grade 1 in the meantime.
-              </p>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setTranslatorError(null);
-                  setRetryToken((token) => token + 1);
-                }}
-                className="mt-2"
-                aria-label="Retry the Liblouis translation"
-              >
-                Retry Liblouis
-              </Button>
-            </div>
-          )}
-        </section>
+            <section aria-labelledby="device-heading">
+              <h2 id="device-heading" className="text-lg font-semibold text-white mb-3">
+                Device Protocol
+              </h2>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Output format">
+                <button
+                  type="button"
+                  onClick={() => setOutputFormat("compact")}
+                  className={`px-3 py-2 ${
+                    outputFormat === "compact" ? toggleActive : toggleInactive
+                  }`}
+                  aria-pressed={outputFormat === "compact"}
+                >
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOutputFormat("json")}
+                  className={`px-3 py-2 ${
+                    outputFormat === "json" ? toggleActive : toggleInactive
+                  }`}
+                  aria-pressed={outputFormat === "json"}
+                >
+                  JSON
+                </button>
+              </div>
 
-        <section aria-labelledby="frame-heading">
-          <h2 id="frame-heading" className="text-lg font-semibold text-white mb-3">
-            Frame Size
-          </h2>
-          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Cells per frame">
-            {GROUP_SIZES.map((size) => (
-              <button
-                key={size}
-                type="button"
-                onClick={() => setGroupSize(size)}
-                className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
-                  groupSize === size
-                    ? "bg-primary-700 border-primary-300 text-white"
-                    : "bg-gray-900 border-gray-700 text-gray-300"
-                }`}
-                aria-pressed={groupSize === size}
-              >
-                {size} cell{size > 1 ? "s" : ""}
-              </button>
-            ))}
+              <div className="mt-4 grid grid-cols-[1fr_auto] gap-3 items-center">
+                <label htmlFor="hold-ms" className="text-stone-300">
+                  Frame hold time
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="hold-ms"
+                    type="number"
+                    min={100}
+                    max={5000}
+                    step={50}
+                    value={holdMs}
+                    onChange={(event) => setHoldMs(Math.max(100, Math.min(5000, Number(event.target.value) || 900)))}
+                    className="w-24 bg-surface-2 text-white border border-surface-border rounded-lg px-3 py-2"
+                    aria-describedby="hold-ms-unit"
+                  />
+                  <span id="hold-ms-unit" className="text-stone-300" aria-label="milliseconds">
+                    ms
+                  </span>
+                </div>
+              </div>
+
+              <label className="mt-3 flex items-center gap-3 min-h-touch">
+                <input
+                  type="checkbox"
+                  checked={blankBetweenFrames}
+                  onChange={(event) => setBlankBetweenFrames(event.target.checked)}
+                  className="w-6 h-6"
+                />
+                <span className="text-stone-300">Blank pins between frames</span>
+              </label>
+
+              <div className="mt-4">
+                <Button
+                  variant="secondary"
+                  onClick={sendHid}
+                  disabled={!hidCap.available}
+                  aria-label="Send to a connected HID braille display"
+                  aria-describedby="hid-hint"
+                  className="w-full"
+                >
+                  <IconBraille className="w-5 h-5 inline mr-1" /> Send to HID braille display
+                </Button>
+                <p id="hid-hint" className="text-xs text-stone-400 mt-2">
+                  {hidCap.available
+                    ? "WebHID requires Chrome/Edge over HTTPS. Pick a braille display when prompted."
+                    : `${hidCap.reason} ${hidCap.suggestion}`}
+                </p>
+              </div>
+            </section>
           </div>
-        </section>
 
-        <section aria-labelledby="device-heading">
-          <h2 id="device-heading" className="text-lg font-semibold text-white mb-3">
-            Device Protocol
-          </h2>
-          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Output format">
-            <button
-              type="button"
-              onClick={() => setOutputFormat("compact")}
-              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
-                outputFormat === "compact"
-                  ? "bg-primary-700 border-primary-300 text-white"
-                  : "bg-gray-900 border-gray-700 text-gray-300"
-              }`}
-              aria-pressed={outputFormat === "compact"}
-            >
-              Compact
-            </button>
-            <button
-              type="button"
-              onClick={() => setOutputFormat("json")}
-              className={`min-h-touch rounded-lg border px-3 py-2 font-semibold ${
-                outputFormat === "json"
-                  ? "bg-primary-700 border-primary-300 text-white"
-                  : "bg-gray-900 border-gray-700 text-gray-300"
-              }`}
-              aria-pressed={outputFormat === "json"}
-            >
-              JSON
-            </button>
-          </div>
+          {/* Right column: Braille Preview, Dot Cells, Output */}
+          <div className="space-y-6 mt-6 lg:mt-0">
+            <section aria-labelledby="preview-heading">
+              <div className="flex items-center justify-between mb-3">
+                <h2 id="preview-heading" className="text-lg font-semibold text-white">
+                  Braille Preview
+                </h2>
+                <Button variant="secondary" onClick={speakPreview} aria-keyshortcuts="V">
+                  Speak (V)
+                </Button>
+              </div>
 
-          <div className="mt-4 grid grid-cols-[1fr_auto] gap-3 items-center">
-            <label htmlFor="hold-ms" className="text-gray-300">
-              Frame hold time
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="hold-ms"
-                type="number"
-                min={100}
-                max={5000}
-                step={50}
-                value={holdMs}
-                onChange={(event) => setHoldMs(Math.max(100, Math.min(5000, Number(event.target.value) || 900)))}
-                className="w-24 bg-gray-900 text-white border border-gray-700 rounded-lg px-3 py-2"
-                aria-describedby="hold-ms-unit"
+              <div
+                className="bg-surface-1 border border-surface-border rounded-xl p-4"
+                aria-label={`${cells.length} braille cells generated`}
+              >
+                <p className="text-4xl leading-relaxed break-words" lang="zxx">
+                  {braillePreview || "No cells"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                <div className="bg-surface-2 border border-surface-border rounded-lg p-3">
+                  <span className="text-stone-400 block">Cells</span>
+                  <span className="text-white text-xl font-bold">{cells.length}</span>
+                </div>
+                <div className="bg-surface-2 border border-surface-border rounded-lg p-3">
+                  <span className="text-stone-400 block">Frames</span>
+                  <span className="text-white text-xl font-bold">{frames.length}</span>
+                </div>
+              </div>
+            </section>
+
+            <section aria-labelledby="cells-heading">
+              <h2 id="cells-heading" className="text-lg font-semibold text-white mb-3">
+                Dot Cells
+              </h2>
+              <div className="grid grid-cols-4 gap-2">
+                {cells.slice(0, 32).map((cell, index) => (
+                  <BrailleDotCell key={`${index}-${cell.source}-${cell.role}`} cell={cell} index={index} />
+                ))}
+              </div>
+              {cells.length > 32 && (
+                <p className="text-stone-400 text-sm mt-2">{cells.length - 32} more cells in JSON output.</p>
+              )}
+            </section>
+
+            <section aria-labelledby="output-heading">
+              <div className="flex items-center justify-between mb-3">
+                <h2 id="output-heading" className="text-lg font-semibold text-white">
+                  Output
+                </h2>
+                <span className="text-sm text-stone-400">
+                  {outputFormat === "json" ? "JSON Lines" : "Firmware text"}
+                </span>
+              </div>
+              <textarea
+                readOnly
+                value={activeOutput}
+                className={`${textareaClass} min-h-48 font-mono text-xs`}
+                aria-label="Generated tactile frame output"
               />
-              <span id="hold-ms-unit" className="text-gray-300" aria-label="milliseconds">
-                ms
-              </span>
-            </div>
+              {outputFormat === "compact" && (
+                <div className="mt-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => navigate("/hardware-emulator")}
+                    aria-label="Open the hardware emulator to preview this output without a device"
+                  >
+                    Open hardware emulator
+                  </Button>
+                </div>
+              )}
+            </section>
           </div>
-
-          <label className="mt-3 flex items-center gap-3 min-h-touch">
-            <input
-              type="checkbox"
-              checked={blankBetweenFrames}
-              onChange={(event) => setBlankBetweenFrames(event.target.checked)}
-              className="w-6 h-6"
-            />
-            <span className="text-gray-300">Blank pins between frames</span>
-          </label>
-
-          <div className="mt-4">
-            <Button
-              variant="secondary"
-              onClick={sendHid}
-              disabled={!hidCap.available}
-              aria-label="Send to a connected HID braille display"
-              aria-describedby="hid-hint"
-              className="w-full"
-            >
-              <IconBraille className="w-5 h-5 inline mr-1" /> Send to HID braille display
-            </Button>
-            <p id="hid-hint" className="text-xs text-gray-400 mt-2">
-              {hidCap.available
-                ? "WebHID requires Chrome/Edge over HTTPS. Pick a braille display when prompted."
-                : `${hidCap.reason} ${hidCap.suggestion}`}
-            </p>
-          </div>
-        </section>
-
-        <section aria-labelledby="preview-heading">
-          <div className="flex items-center justify-between mb-3">
-            <h2 id="preview-heading" className="text-lg font-semibold text-white">
-              Braille Preview
-            </h2>
-            <Button variant="secondary" onClick={speakPreview} aria-keyshortcuts="V">
-              Speak (V)
-            </Button>
-          </div>
-
-          <div
-            className="bg-gray-950 border border-gray-700 rounded-xl p-4"
-            aria-label={`${cells.length} braille cells generated`}
-          >
-            <p className="text-4xl leading-relaxed break-words" lang="zxx">
-              {braillePreview || "No cells"}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-              <span className="text-gray-400 block">Cells</span>
-              <span className="text-white text-xl font-bold">{cells.length}</span>
-            </div>
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-              <span className="text-gray-400 block">Frames</span>
-              <span className="text-white text-xl font-bold">{frames.length}</span>
-            </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="cells-heading">
-          <h2 id="cells-heading" className="text-lg font-semibold text-white mb-3">
-            Dot Cells
-          </h2>
-          <div className="grid grid-cols-4 gap-2">
-            {cells.slice(0, 32).map((cell, index) => (
-              <BrailleDotCell key={`${index}-${cell.source}-${cell.role}`} cell={cell} index={index} />
-            ))}
-          </div>
-          {cells.length > 32 && (
-            <p className="text-gray-400 text-sm mt-2">{cells.length - 32} more cells in JSON output.</p>
-          )}
-        </section>
-
-        <section aria-labelledby="output-heading">
-          <div className="flex items-center justify-between mb-3">
-            <h2 id="output-heading" className="text-lg font-semibold text-white">
-              Output
-            </h2>
-            <span className="text-sm text-gray-400">
-              {outputFormat === "json" ? "JSON Lines" : "Firmware text"}
-            </span>
-          </div>
-          <textarea
-            readOnly
-            value={activeOutput}
-            className="w-full min-h-48 bg-gray-950 text-gray-200 border border-gray-700 rounded-xl px-3 py-3 font-mono text-xs"
-            aria-label="Generated tactile frame output"
-          />
-          {outputFormat === "compact" && (
-            <div className="mt-2">
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/hardware-emulator")}
-                aria-label="Open the hardware emulator to preview this output without a device"
-              >
-                Open hardware emulator
-              </Button>
-            </div>
-          )}
-        </section>
+        </div>
       </div>
 
-      <div className="fixed bottom-above-nav left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
-        <div className="max-w-lg mx-auto grid grid-cols-3 gap-2">
+      <div className="fixed bottom-above-nav left-0 right-0 bg-surface-0/95 backdrop-blur border-t border-surface-border px-4 py-3">
+        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-2">
           <Button variant="secondary" onClick={copyFrames} aria-keyshortcuts="C">
             Copy (C)
           </Button>
@@ -707,14 +700,14 @@ export default function TactileOutputPage() {
         </div>
         <p
           id="serial-hint"
-          className="max-w-lg mx-auto text-center text-xs text-gray-400 mt-2"
+          className="max-w-3xl mx-auto text-center text-xs text-stone-400 mt-2"
         >
           {serialCap.available
             ? "Keyboard: C copy, S save, N send, V speak preview. F6 anywhere for voice."
             : `${serialCap.reason} ${serialCap.suggestion}`}
         </p>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -727,7 +720,7 @@ function BrailleDotCell({
 }) {
   return (
     <div
-      className="bg-gray-900 border border-gray-700 rounded-lg p-2"
+      className="bg-surface-2 border border-surface-border rounded-lg p-2"
       aria-label={`Cell ${index + 1}, source ${cell.source || "blank"}, dots ${
         cell.dots.length ? cell.dots.join(", ") : "none"
       }`}
@@ -739,13 +732,13 @@ function BrailleDotCell({
             className={`w-4 h-4 rounded-full border ${
               cell.dots.includes(dot)
                 ? "bg-primary-300 border-primary-200"
-                : "bg-gray-800 border-gray-600"
+                : "bg-surface-3 border-surface-border"
             }`}
             aria-hidden="true"
           />
         ))}
       </div>
-      <p className="text-center text-xs text-gray-400 mt-2 truncate">
+      <p className="text-center text-xs text-stone-400 mt-2 truncate">
         {cell.source === " " ? "space" : cell.source}
       </p>
     </div>

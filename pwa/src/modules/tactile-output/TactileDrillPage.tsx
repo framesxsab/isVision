@@ -5,10 +5,9 @@
 // can drill before plugging in a real device.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
+import { PageShell, toggleActive, toggleInactive } from "@/components/PageShell";
 import {
-  IconArrowLeft,
   IconBraille,
   IconRefresh,
   IconSkipBack,
@@ -53,7 +52,6 @@ const DIFFICULTY_OPTIONS: Array<{ id: Difficulty; label: string; hint: string }>
 ];
 
 export default function TactileDrillPage() {
-  const navigate = useNavigate();
   const announce = useAnnounce();
 
   // Persisted across reloads via tactileStore.
@@ -247,20 +245,14 @@ export default function TactileDrillPage() {
   const accuracy = accuracyPercent(score);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
-          </Button>
-          <h1 className="text-lg font-bold text-white">Tactile Drill</h1>
-          <div className="w-20 text-right text-sm text-gray-400" aria-hidden="true">
-            {score.attempts > 0 ? `${accuracy}%` : ""}
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1 px-4 py-5 pb-nav-action max-w-lg mx-auto w-full space-y-6">
+    <PageShell
+      title="Tactile Drill"
+      accent="yellow"
+      headerRight={
+        <div className="text-sm text-stone-400" aria-hidden="true">{score.attempts > 0 ? `${accuracy}%` : ""}</div>
+      }
+    >
+      <div className="flex-1 px-4 py-5 pb-nav-action max-w-3xl mx-auto w-full space-y-6">
         <section aria-labelledby="drill-mode-heading">
           <h2 id="drill-mode-heading" className="text-lg font-semibold text-white mb-3">
             Drill
@@ -273,10 +265,8 @@ export default function TactileDrillPage() {
                 role="radio"
                 aria-checked={mode === option.id}
                 onClick={() => setMode(option.id)}
-                className={`min-h-touch rounded-lg border px-1 py-2 font-semibold text-xs ${
-                  mode === option.id
-                    ? "bg-primary-700 border-primary-300 text-white"
-                    : "bg-gray-900 border-gray-700 text-gray-300"
+                className={`px-1 py-2 text-xs ${
+                  mode === option.id ? toggleActive : toggleInactive
                 }`}
               >
                 {option.label}
@@ -302,17 +292,15 @@ export default function TactileDrillPage() {
                 role="radio"
                 aria-checked={difficulty === option.id}
                 onClick={() => setDifficulty(option.id)}
-                className={`min-h-touch rounded-lg border px-3 py-2 font-semibold text-sm ${
-                  difficulty === option.id
-                    ? "bg-primary-700 border-primary-300 text-white"
-                    : "bg-gray-900 border-gray-700 text-gray-300"
+                className={`px-3 py-2 text-sm ${
+                  difficulty === option.id ? toggleActive : toggleInactive
                 }`}
               >
                 {option.label}
               </button>
             ))}
           </div>
-          <p id="difficulty-hint" className="text-sm text-gray-300 mt-2">
+          <p id="difficulty-hint" className="text-sm text-stone-300 mt-2">
             {DIFFICULTY_OPTIONS.find((d) => d.id === difficulty)!.hint}
           </p>
         </section>
@@ -331,16 +319,16 @@ export default function TactileDrillPage() {
             className={`min-h-touch w-full rounded-lg border px-4 py-3 font-semibold text-sm flex items-center justify-between gap-3 ${
               practiceMistakes
                 ? "bg-amber-500/15 border-amber-400/40 text-amber-100"
-                : "bg-gray-900 border-gray-700 text-gray-200"
+                : "bg-surface-2 border-surface-border text-stone-200"
             }`}
             disabled={!practiceMistakes && mistakeStats.length === 0}
           >
             <span>{practiceMistakes ? "On — drilling your weak spots" : "Off — random prompts"}</span>
-            <span className="text-xs text-gray-400" aria-hidden="true">
+            <span className="text-xs text-stone-400" aria-hidden="true">
               {mistakeStats.length} weak
             </span>
           </button>
-          <p id="practice-mistakes-hint" className="text-sm text-gray-300 mt-2">
+          <p id="practice-mistakes-hint" className="text-sm text-stone-300 mt-2">
             {mistakeStats.length === 0
               ? "Make at least one wrong guess to build a mistake pool."
               : `Queues only answers you've missed — starts with the ${mistakeStats[0]!.kind === "single letter" ? "letter" : "answer"} "${mistakeStats[0]!.answer}" (your weakest).`}
@@ -364,10 +352,8 @@ export default function TactileDrillPage() {
                 role="radio"
                 aria-checked={speechMode === option.id}
                 onClick={() => setSpeechMode(option.id)}
-                className={`min-h-touch rounded-lg border px-2 py-2 font-semibold text-sm ${
-                  speechMode === option.id
-                    ? "bg-primary-700 border-primary-300 text-white"
-                    : "bg-gray-900 border-gray-700 text-gray-300"
+                className={`px-2 py-2 text-sm ${
+                  speechMode === option.id ? toggleActive : toggleInactive
                 }`}
               >
                 {option.label}
@@ -378,7 +364,7 @@ export default function TactileDrillPage() {
               Putting aria-describedby on the radiogroup itself keeps the
               reference valid as the user cycles through options, instead of
               dangling at the IDs of the non-selected buttons. */}
-          <p id="speech-hint" className="text-sm text-gray-300 mt-2">
+          <p id="speech-hint" className="text-sm text-stone-300 mt-2">
             {SPEECH_OPTIONS.find((o) => o.id === speechMode)!.hint}
           </p>
           {speechNeeded && !speechCap.available && (
@@ -395,11 +381,11 @@ export default function TactileDrillPage() {
             <h2 id="prompt-heading" className="text-lg font-semibold text-white">
               Prompt
             </h2>
-            <span className="text-xs text-gray-400">{current.kind}</span>
+            <span className="text-xs text-stone-400">{current.kind}</span>
           </div>
 
           <div
-            className="bg-gray-950 border border-gray-700 rounded-xl p-4 text-center"
+            className="bg-surface-1 border border-surface-border rounded-xl p-4 text-center"
             aria-label={
               speechMode === "speech"
                 ? `Current prompt is a ${current.kind}. Tactile output hidden in speech-only mode.`
@@ -412,7 +398,7 @@ export default function TactileDrillPage() {
               // whole point of the "speech only vs speech + tactile"
               // comparison the architecture doc calls out.
               <p
-                className="text-base text-gray-400 py-6"
+                className="text-base text-stone-400 py-6"
                 data-testid="speech-only-hidden"
               >
                 Tactile output hidden in speech-only mode.
@@ -422,7 +408,7 @@ export default function TactileDrillPage() {
                 {braillePreview}
               </p>
             )}
-            <p className="text-xs text-gray-400 mt-3" data-testid="cells-debug">
+            <p className="text-xs text-stone-400 mt-3" data-testid="cells-debug">
               {cells.length} cells
             </p>
           </div>
@@ -454,7 +440,7 @@ export default function TactileDrillPage() {
                 }
               }
             }}
-            className="w-full bg-gray-900 text-white border border-gray-700 rounded-xl px-4 py-3 text-lg"
+            className="w-full bg-surface-2 text-white border border-surface-border rounded-xl px-4 py-3 text-lg"
             aria-describedby="drill-feedback"
           />
           <p
@@ -466,7 +452,7 @@ export default function TactileDrillPage() {
                 ? "text-green-300"
                 : feedback === "wrong"
                   ? "text-red-300"
-                  : "text-gray-400"
+                  : "text-stone-400"
             }`}
           >
             {feedback === "correct" && `Correct. Streak ${score.streak}.`}
@@ -499,23 +485,23 @@ export default function TactileDrillPage() {
               Export CSV
             </Button>
           </div>
-          <p className="text-sm text-gray-300 mb-3" data-testid="drill-history-count">
+          <p className="text-sm text-stone-300 mb-3" data-testid="drill-history-count">
             {attemptHistory.length === 0
               ? "No attempts yet. Submit one to start building your history."
               : `${attemptHistory.length} attempt${attemptHistory.length === 1 ? "" : "s"} in this session.`}
           </p>
           {recentMistakes.length > 0 && (
             <>
-              <h3 className="text-sm font-semibold text-gray-200 mb-2">Recent mistakes</h3>
+              <h3 className="text-sm font-semibold text-stone-200 mb-2">Recent mistakes</h3>
               <ul className="space-y-1" aria-label="Recent mistakes">
                 {recentMistakes.map((attempt, i) => (
                   <li
                     key={`${attempt.at}-${i}`}
-                    className="text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2"
+                    className="text-sm text-stone-300 bg-surface-2 border border-surface-border rounded-lg px-3 py-2"
                   >
-                    <span className="text-gray-400">{attempt.kind}:</span>{" "}
+                    <span className="text-stone-400">{attempt.kind}:</span>{" "}
                     <span className="text-white font-medium">{spokenAnswer(attempt)}</span>
-                    <span className="text-gray-400"> — you said </span>
+                    <span className="text-stone-400"> — you said </span>
                     <span className="text-red-300">{attempt.guess || "(blank)"}</span>
                   </li>
                 ))}
@@ -525,8 +511,8 @@ export default function TactileDrillPage() {
         </section>
       </div>
 
-      <div className="fixed bottom-above-nav left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 px-4 py-3">
-        <div className="max-w-lg mx-auto grid grid-cols-4 gap-2">
+      <div className="fixed bottom-above-nav left-0 right-0 bg-surface-0/95 backdrop-blur border-t border-surface-border px-4 py-3">
+        <div className="max-w-3xl mx-auto grid grid-cols-4 gap-2">
           <Button variant="ghost" onClick={goBack} aria-label="Previous prompt">
             <IconSkipBack className="w-5 h-5" />
           </Button>
@@ -540,18 +526,18 @@ export default function TactileDrillPage() {
             <IconRefresh className="w-5 h-5" />
           </Button>
         </div>
-        <p className="max-w-lg mx-auto text-center text-xs text-gray-400 mt-2">
+        <p className="max-w-3xl mx-auto text-center text-xs text-stone-400 mt-2">
           Enter: check / next. Use the row above for back, repeat, next, reset.
         </p>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
 function ScoreTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-center">
-      <span className="text-gray-400 block text-xs uppercase tracking-wide">{label}</span>
+    <div className="bg-surface-2 border border-surface-border rounded-lg p-3 text-center">
+      <span className="text-stone-400 block text-xs uppercase tracking-wide">{label}</span>
       <span className="text-white text-2xl font-bold">{value}</span>
     </div>
   );

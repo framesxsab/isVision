@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { matchCommandWithAlternatives } from "@/modules/voice-nav/commandRegistry";
+import { answerQuestion } from "@/modules/voice-nav/assistantAnswers";
 import { useSettingsStore } from "@/core/store/settingsStore";
 
 /**
@@ -61,9 +62,18 @@ export function useGlobalVoiceHotkey() {
               );
             }
         } else {
-          speechEngine.interrupt(
-            `I didn't understand "${result.transcript}". Press F6 and try again.`
-          );
+          // Command didn't match — try answering as a question. This is
+          // what makes F6 feel like a real assistant rather than a strict
+          // command line: a blind user can ask "what is this" or "how do
+          // I use the reader" without learning the verbs.
+          const answer = answerQuestion(result.transcript, location.pathname);
+          if (answer) {
+            speechEngine.interrupt(answer.spoken);
+          } else {
+            speechEngine.interrupt(
+              `I didn't understand "${result.transcript}". Try asking "what is this", or say "open reader". Press F6 to try again.`
+            );
+          }
         }
       } catch {
         // User cancelled or no speech detected — silent

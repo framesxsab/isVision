@@ -1,16 +1,13 @@
-/**
- * VoiceNavPage — Push-to-talk voice command interface.
- * Shows available commands, push-to-talk button, command history.
- */
-
 import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
 import { commands, matchCommandWithAlternatives } from "./commandRegistry";
+import { answerQuestion } from "./assistantAnswers";
 import { Button } from "@/components/Button";
-import { IconArrowLeft, IconMicrophone, IconEar } from "@/components/Icons";
+import { IconEar, IconMicrophone } from "@/components/Icons";
+import { PageShell, SectionLabel } from "@/components/PageShell";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
 
@@ -20,8 +17,6 @@ interface HistoryEntry {
   timestamp: number;
 }
 
-// Match SpeechRecognition.ts not-allowed mapping so the inline CTA shows
-// for the right error class only.
 function isMicPermissionError(message: string | null): boolean {
   if (!message) return false;
   const lower = message.toLowerCase();
@@ -30,6 +25,7 @@ function isMicPermissionError(message: string | null): boolean {
 
 export default function VoiceNavPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const announce = useAnnounce();
   const [isListening, setIsListening] = useState(false);
   const [lastTranscript, setLastTranscript] = useState("");
@@ -42,75 +38,47 @@ export default function VoiceNavPage() {
 
   useEffect(() => {
     announce("Voice Navigation is ready. Press and hold the button to speak a command.");
-    speechEngine.speak("Voice Navigation is ready. Press the large button and speak a command. Say help for a list of commands.");
+    speechEngine.speak(
+      "Voice Navigation is ready. Press the large button and speak a command. Say help for a list of commands, or ask what is this for a description of the platform."
+    );
   }, [announce]);
 
   const executeAction = useCallback(
     (action: string, options?: { silent?: boolean }) => {
-      // `silent` mode is used after an echo-back — the user already heard
-      // "I heard X, opening Y", so we shouldn't speak the same thing again.
-      // Navigation/state-change side effects still run.
       const silent = options?.silent === true;
-      const say = (msg: string) => {
-        if (!silent) speechEngine.interrupt(msg);
-      };
+      const say = (msg: string) => { if (!silent) speechEngine.interrupt(msg); };
       switch (action) {
         case "help": {
           const helpText = commands
             .filter((c) => c.module === "global")
             .map((c) => `${c.patterns[0]}: ${c.description}`)
             .join(". ");
-          // Always speak the help text — that IS the action.
           speechEngine.interrupt(`Available commands. ${helpText}`);
           break;
         }
-        case "navigate_home":
-          navigate("/");
-          say("Going home.");
+        case "navigate_home": navigate("/"); say("Going home."); break;
+        case "navigate_back": navigate(-1); say("Going back."); break;
+        case "navigate_settings": navigate("/settings"); say("Opening settings."); break;
+        case "navigate_touch_explorer": navigate("/touch-explorer"); say("Opening Touch Explorer."); break;
+        case "navigate_ai_vision": navigate("/ai-vision"); say("Opening AI Vision."); break;
+        case "navigate_reader": navigate("/reader"); say("Opening Accessible Reader."); break;
+        case "navigate_tactile_output": navigate("/tactile-output"); say("Opening Tactile Output Lab."); break;
+        case "navigate_tactile_drill": navigate("/tactile-drill"); say("Opening Tactile Drill."); break;
+        case "stop_speech": speechEngine.stop(); break;
+        case "speed_up": {
+          const newRate = Math.min(3, speechRate + 0.2);
+          setSpeechRate(newRate);
+          speechEngine.setRate(newRate);
+          speechEngine.interrupt(`Speed ${newRate.toFixed(1)}x`);
           break;
-        case "navigate_back":
-          navigate(-1);
-          say("Going back.");
+        }
+        case "slow_down": {
+          const newRate = Math.max(0.5, speechRate - 0.2);
+          setSpeechRate(newRate);
+          speechEngine.setRate(newRate);
+          speechEngine.interrupt(`Speed ${newRate.toFixed(1)}x`);
           break;
-        case "navigate_settings":
-          navigate("/settings");
-          say("Opening settings.");
-          break;
-        case "navigate_touch_explorer":
-          navigate("/touch-explorer");
-          say("Opening Touch Explorer.");
-          break;
-        case "navigate_ai_vision":
-          navigate("/ai-vision");
-          say("Opening AI Vision.");
-          break;
-        case "navigate_reader":
-          navigate("/reader");
-          say("Opening Accessible Reader.");
-          break;
-        case "navigate_tactile_output":
-          navigate("/tactile-output");
-          say("Opening Tactile Output Lab.");
-          break;
-        case "navigate_tactile_drill":
-          navigate("/tactile-drill");
-          say("Opening Tactile Drill.");
-          break;
-        case "stop_speech":
-          speechEngine.stop();
-          break;
-        case "speed_up":
-          setSpeechRate(Math.min(3, speechRate + 0.2));
-          speechEngine.setRate(speechRate + 0.2);
-          // Speed changes always get a confirmation — there's no visual
-          // cue and the echo wouldn't include the new value.
-          speechEngine.interrupt(`Speed ${(speechRate + 0.2).toFixed(1)}x`);
-          break;
-        case "slow_down":
-          setSpeechRate(Math.max(0.5, speechRate - 0.2));
-          speechEngine.setRate(speechRate - 0.2);
-          speechEngine.interrupt(`Speed ${(speechRate - 0.2).toFixed(1)}x`);
-          break;
+        }
         default:
           speechEngine.interrupt(`Command ${action} is available on its module page.`);
       }
@@ -135,8 +103,6 @@ export default function VoiceNavPage() {
     try {
       const result = await speechRecognition.listenWithAlternatives();
       setIsListening(false);
-      // Show the alternative that actually matched, not the browser's top
-      // guess — otherwise the user sees "you said X" but heard us run Y.
       const match = matchCommandWithAlternatives(result.alternatives);
       const displayTranscript = match?.matchedAlternative ?? result.transcript;
       setLastTranscript(displayTranscript);
@@ -148,57 +114,44 @@ export default function VoiceNavPage() {
       };
       setHistory((prev) => [entry, ...prev].slice(0, 20));
 
-      if (match && match.confidence >= 0.65) {
+      if (match && match.confidence >= 0.55) {
         earcons.success();
         if (voiceConfirmAloud) {
-          // Echo back what we heard *before* acting. This is the trust loop:
-          // a silent misfire used to feel like the app was broken; now the
-          // user always knows the system understood them, and what it's about
-          // to do, before anything happens.
           const echo = `I heard "${result.transcript}". ${match.command.description}.`;
           announce(echo);
           speechEngine.interrupt(echo);
-          // Wait long enough for most of the echo to play, then run the
-          // action silently — the destination page typically speaks its own
-          // greeting on mount, so suppressing the duplicate keeps the audio
-          // experience clean.
           setTimeout(() => executeAction(match.command.action, { silent: true }), 1400);
         } else {
-          // Confirmation disabled: run immediately and let the action's own
-          // speech ("Opening Reader.") serve as feedback. The aria-live area
-          // still shows the recognized transcript via setLastTranscript.
           announce(`Running ${match.command.description}.`);
           executeAction(match.command.action);
         }
       } else {
-        earcons.error();
-        speechEngine.interrupt(
-          `I didn't understand "${result.transcript}". Say help for available commands.`
-        );
+        const answer = answerQuestion(result.transcript, location.pathname);
+        if (answer) {
+          earcons.success();
+          announce(answer.spoken);
+          speechEngine.interrupt(answer.spoken);
+        } else {
+          earcons.error();
+          speechEngine.interrupt(
+            `I didn't understand "${result.transcript}". Try "what is this", "take a tour", or say help.`
+          );
+        }
       }
     } catch (err) {
       setIsListening(false);
       const msg = err instanceof Error ? err.message : "Could not recognize speech.";
       setErrorMessage(msg);
-      if (isMicPermissionError(msg)) {
-        setSetupStatus({ microphone: "denied" });
-      }
+      if (isMicPermissionError(msg)) setSetupStatus({ microphone: "denied" });
       speechEngine.interrupt(msg);
     }
-  }, [announce, executeAction, setSetupStatus, voiceConfirmAloud]);
+  }, [announce, executeAction, location.pathname, setSetupStatus, voiceConfirmAloud]);
 
-  const openSetup = useCallback(() => {
-    navigate("/onboarding?restart=1");
-  }, [navigate]);
-
+  const openSetup = useCallback(() => navigate("/onboarding?restart=1"), [navigate]);
   const dismissError = useCallback(() => setErrorMessage(null), []);
 
-  // Group commands by module
   const groupedCommands = commands.reduce<Record<string, typeof commands>>(
-    (acc, cmd) => {
-      (acc[cmd.module] ??= []).push(cmd);
-      return acc;
-    },
+    (acc, cmd) => { (acc[cmd.module] ??= []).push(cmd); return acc; },
     {}
   );
 
@@ -211,131 +164,148 @@ export default function VoiceNavPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Toolbar */}
-      <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <Button variant="ghost" onClick={() => navigate("/")} aria-label="Go back to home">
-            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
-          </Button>
-          <h1 className="text-lg font-bold text-white">Voice Nav</h1>
-          <div className="w-20" />
-        </div>
-      </header>
-
-      {/* Inline blocked / unsupported state with actionable CTAs */}
+    <PageShell title="Voice Navigation" accent="orange" width="wide">
+      {/* Error banner */}
       {errorMessage && (
         <div
           role="alert"
-          className="mx-auto mt-4 max-w-lg w-[calc(100%-2rem)] rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-4"
+          className="mx-4 sm:mx-6 lg:mx-10 mt-5 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-5 py-4"
         >
           <p className="text-rose-200 text-sm leading-relaxed mb-3">{errorMessage}</p>
           <div className="flex flex-wrap gap-2">
             {isMicPermissionError(errorMessage) ? (
               <>
-                <Button onClick={handleListen} variant="secondary">
-                  Try again
-                </Button>
-                <Button onClick={openSetup} variant="secondary">
-                  Run setup again
-                </Button>
+                <Button onClick={handleListen} variant="secondary">Try again</Button>
+                <Button onClick={openSetup} variant="secondary">Run setup again</Button>
               </>
             ) : (
-              <Button onClick={dismissError} variant="secondary">
-                Dismiss
-              </Button>
+              <Button onClick={dismissError} variant="secondary">Dismiss</Button>
             )}
           </div>
         </div>
       )}
 
-      {/* Push-to-talk area */}
-      <div className="flex flex-col items-center justify-center py-8 px-4">
-        <button
-          onClick={handleListen}
-          disabled={isListening}
-          className={`
-            w-32 h-32 rounded-full flex items-center justify-center
-            text-5xl transition-all duration-200
-            focus-visible:ring-4 focus-visible:ring-primary-400 focus-visible:ring-offset-4 focus-visible:ring-offset-gray-950
-            ${
-              isListening
-                ? "bg-red-600 border-4 border-red-400 animate-pulse"
-                : "bg-primary-600 border-4 border-primary-400 hover:bg-primary-500 active:bg-primary-700"
-            }
-          `}
-          aria-label={isListening ? "Listening for your command" : "Press to speak a command"}
-        >
-          {isListening ? (
-            <IconEar className="w-12 h-12 text-white" />
-          ) : (
-            <IconMicrophone className="w-12 h-12 text-white" />
-          )}
-        </button>
-        <p className="text-gray-400 mt-4 text-center" aria-live="polite">
-          {isListening
-            ? "Listening... speak now"
-            : lastTranscript
-              ? `You said: "${lastTranscript}"`
-              : "Tap the button and speak a command"}
-        </p>
-      </div>
+      {/* ── Desktop 2-col layout ── */}
+      <div className="flex-1 px-4 sm:px-6 lg:px-10 py-8 max-w-5xl mx-auto w-full">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
 
-      {/* Command reference */}
-      <div className="flex-1 px-4 pb-nav">
-        <div className="max-w-lg mx-auto space-y-6">
-          <h2 className="text-xl font-bold text-white">Available Commands</h2>
+          {/* LEFT — mic + status */}
+          <div className="flex flex-col items-center lg:items-start lg:w-64 shrink-0">
+            {/* Big mic button */}
+            <button
+              onClick={handleListen}
+              disabled={isListening}
+              className={`
+                relative w-36 h-36 lg:w-40 lg:h-40
+                rounded-full flex items-center justify-center
+                transition-all duration-200
+                focus-visible:ring-4 focus-visible:ring-primary-400 focus-visible:ring-offset-4 focus-visible:ring-offset-surface-0
+                ${
+                  isListening
+                    ? "bg-rose-500/20 border-2 border-rose-400/60 ring-4 ring-rose-400/20 animate-pulse"
+                    : "bg-primary-500/15 border-2 border-primary-400/50 hover:bg-primary-500/25 hover:border-primary-300/70"
+                }
+              `}
+              style={!isListening ? { boxShadow: "0 0 60px rgba(251,146,60,0.15)" } : undefined}
+              aria-label={isListening ? "Listening for your command. Speak now." : "Press to speak a command or question. You can also press F6 anywhere in the app."}
+            >
+              {isListening ? (
+                <IconEar className="w-14 h-14 text-rose-300" />
+              ) : (
+                <IconMicrophone className="w-14 h-14 text-primary-300" />
+              )}
+            </button>
 
-          {Object.entries(groupedCommands).map(([module, cmds]) => (
-            <section key={module} aria-label={`${moduleLabels[module] ?? module} commands`}>
-              <h3 className="text-sm font-semibold text-primary-400 uppercase tracking-wider mb-2">
-                {moduleLabels[module] ?? module}
-              </h3>
-              <ul className="space-y-1">
-                {cmds.map((cmd) => (
-                  <li
-                    key={cmd.name}
-                    className="flex justify-between items-center bg-gray-900 rounded-lg px-4 py-3 min-h-touch"
-                  >
-                    <span className="text-white font-medium">
-                      "{cmd.patterns[0]}"
-                    </span>
-                    <span className="text-gray-400 text-sm">{cmd.description}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-      </div>
+            <p
+              className="text-sm text-stone-400 mt-5 text-center lg:text-left"
+              aria-live="polite"
+            >
+              {isListening
+                ? "Listening… speak now"
+                : lastTranscript
+                  ? `You said: "${lastTranscript}"`
+                  : "Tap the button and speak"}
+            </p>
 
-      {/* History */}
-      {history.length > 0 && (
-        <div className="bg-gray-950 border-t border-gray-800 px-4 py-3">
-          <details className="max-w-lg mx-auto">
-            <summary className="text-sm text-gray-400 cursor-pointer min-h-touch flex items-center">
-              Command history ({history.length})
-            </summary>
-            <ul className="mt-2 space-y-1">
-              {history.map((entry, i) => (
-                <li
-                  key={i}
-                  className="flex justify-between items-center bg-gray-900 rounded px-3 py-2 text-sm"
+            {/* Quick examples */}
+            <div className="mt-6 space-y-2 w-full">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500 mb-3">
+                Try saying
+              </p>
+              {[
+                "open reader",
+                "what is this",
+                "take a tour",
+                "help",
+                "go home",
+              ].map((ex) => (
+                <div
+                  key={ex}
+                  className="px-3 py-2 rounded-lg bg-surface-2 border border-surface-border text-sm text-stone-300 font-medium"
                 >
-                  <span className="text-gray-300">"{entry.transcript}"</span>
-                  <span
-                    className={
-                      entry.command ? "text-green-400" : "text-red-400"
-                    }
-                  >
-                    {entry.command ?? "not recognized"}
-                  </span>
-                </li>
+                  "{ex}"
+                </div>
               ))}
-            </ul>
-          </details>
+            </div>
+
+            {/* History */}
+            {history.length > 0 && (
+              <details className="mt-6 w-full">
+                <summary className="text-sm text-stone-400 cursor-pointer min-h-touch flex items-center gap-2 select-none">
+                  <span>History</span>
+                  <span className="text-[10px] bg-surface-3 border border-surface-border text-stone-500 rounded-full px-1.5 py-0.5">
+                    {history.length}
+                  </span>
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {history.map((entry, i) => (
+                    <li
+                      key={i}
+                      className="flex justify-between items-center bg-surface-1 border border-surface-border rounded-xl px-3 py-2 text-sm"
+                    >
+                      <span className="text-stone-300 truncate mr-2">"{entry.transcript}"</span>
+                      <span className={`shrink-0 text-xs font-medium ${entry.command ? "text-primary-400" : "text-rose-400"}`}>
+                        {entry.command ?? "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+
+          {/* RIGHT — commands reference */}
+          <div className="flex-1 min-w-0 pb-nav">
+            <SectionLabel label="Available commands" className="mb-4" />
+            <div className="space-y-5">
+              {Object.entries(groupedCommands).map(([module, cmds]) => (
+                <section key={module} aria-label={`${moduleLabels[module] ?? module} commands`}>
+                  <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-primary-400 mb-2">
+                    {moduleLabels[module] ?? module}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {cmds.map((cmd) => (
+                      <li
+                        key={cmd.name}
+                        className="flex justify-between items-center bg-surface-1 border border-surface-border rounded-xl px-4 py-3 min-h-touch"
+                      >
+                        <span className="text-stone-100 font-medium text-sm">
+                          "{cmd.patterns[0]}"
+                        </span>
+                        <span className="text-stone-500 text-xs ml-4 text-right">{cmd.description}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              <p className="text-xs text-stone-500 pt-2">
+                You can also ask questions — "what is this", "how do I use the reader", "take a tour".
+              </p>
+            </div>
+          </div>
+
         </div>
-      )}
-    </div>
+      </div>
+    </PageShell>
   );
 }

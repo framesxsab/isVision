@@ -56,9 +56,9 @@ function BrandMark() {
     <div
       aria-hidden="true"
       className="relative mx-auto mb-6 w-20 h-20 rounded-2xl flex items-center justify-center
-                 bg-gradient-to-br from-primary-400/25 via-primary-500/10 to-violet-500/15
+                 bg-gradient-to-br from-primary-400/25 via-primary-500/10 to-yellow-500/15
                  border border-primary-400/30
-                 shadow-[0_10px_40px_-12px_rgba(34,211,238,0.5),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                 shadow-[0_10px_40px_-12px_rgba(251,146,60,0.5),inset_0_1px_0_rgba(255,255,255,0.08)]"
     >
       <span className="absolute inset-0 rounded-2xl bg-primary-400/10 blur-xl -z-10" />
       <svg viewBox="0 0 48 48" className="w-10 h-10 text-primary-200" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -227,7 +227,7 @@ export default function OnboardingPage() {
   if (!audioStarted) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto">
-        <div className="sr-only" role="status" aria-live="assertive">
+        <div className="sr-only" role="status" aria-live="polite">
           {liveMessage}
         </div>
 
@@ -239,7 +239,7 @@ export default function OnboardingPage() {
           </p>
           <h1 className="text-4xl font-bold tracking-tight mb-4">
             <span className="text-stone-50">is</span>
-            <span className="text-gradient-cyan">Visible</span>
+            <span className="text-gradient-warm">Visible</span>
           </h1>
           <p className="text-lg text-stone-300 leading-relaxed max-w-md mx-auto">
             Start spoken setup to continue with voice guidance, or skip and configure later from Settings.
@@ -269,7 +269,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 max-w-lg mx-auto">
-      <div className="sr-only" role="status" aria-live="assertive">
+      <div className="sr-only" role="status" aria-live="polite">
         {liveMessage}
       </div>
 
@@ -303,7 +303,7 @@ export default function OnboardingPage() {
                 i < step
                   ? "bg-primary-400"
                   : i === step
-                    ? "bg-primary-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]"
+                    ? "bg-primary-400 shadow-[0_0_12px_rgba(251,146,60,0.5)]"
                     : "bg-surface-3"
               }`}
             />

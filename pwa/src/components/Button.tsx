@@ -13,7 +13,7 @@ const variants = {
     "bg-gradient-to-b from-primary-400 to-primary-600",
     "hover:from-primary-300 hover:to-primary-500",
     "active:from-primary-500 active:to-primary-700",
-    "shadow-[0_4px_14px_-4px_rgba(34,211,238,0.5),inset_0_1px_0_rgba(255,255,255,0.18)]",
+    "shadow-[0_4px_14px_-4px_rgba(251,146,60,0.5),inset_0_1px_0_rgba(255,255,255,0.18)]",
     "ring-1 ring-primary-300/30",
   ].join(" "),
   secondary: [

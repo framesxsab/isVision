@@ -25,7 +25,9 @@ export interface TouchExplorerState {
 
 export function useTouchExplorer(
   /** Reference to the touch surface container — events outside it are ignored */
-  containerRef: React.RefObject<HTMLElement | null>
+  containerRef: React.RefObject<HTMLElement | null>,
+  /** Called whenever the explored element changes — avoids polling. */
+  onElementChange?: (state: TouchExplorerState) => void
 ) {
   const lastElementRef = useRef<Element | null>(null);
   const lastFireRef = useRef(0);
@@ -63,6 +65,7 @@ export function useTouchExplorer(
       // Generate description and speak it
       const description = describeElement(el);
       stateRef.current = { currentElement: el, currentDescription: description };
+      onElementChange?.(stateRef.current);
 
       // 1. Interrupt speech with new description
       speechEngine.interrupt(description);
@@ -89,7 +92,7 @@ export function useTouchExplorer(
         );
       }
     },
-    [containerRef, hapticEnabled, spatialEnabled]
+    [containerRef, hapticEnabled, spatialEnabled, onElementChange]
   );
 
   const onTouchStart = useCallback(
@@ -130,6 +133,5 @@ export function useTouchExplorer(
       onTouchEnd,
       onMouseMove,
     },
-    getState: () => stateRef.current,
   };
 }

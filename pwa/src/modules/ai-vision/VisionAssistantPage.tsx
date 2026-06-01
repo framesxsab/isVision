@@ -8,7 +8,8 @@ import { useNavigate } from "react-router-dom";
 import { useVisionAssistant } from "./useVisionAssistant";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { IconArrowLeft, IconUpload, IconRefresh, IconCaptureCircle } from "@/components/Icons";
+import { IconUpload, IconRefresh, IconCaptureCircle } from "@/components/Icons";
+import { PageShell } from "@/components/PageShell";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
@@ -152,19 +153,15 @@ export default function VisionAssistantPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Toolbar */}
-      <header className="sticky top-0 z-30 bg-gray-900/95 backdrop-blur border-b border-gray-700 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <Button variant="ghost" onClick={() => { stopCamera(); navigate("/"); }} aria-label="Go back to home">
-            <IconArrowLeft className="w-5 h-5 inline mr-1" /> Back
-          </Button>
-          <h1 className="text-lg font-bold text-white">AI Vision</h1>
-          <span className="text-sm text-gray-400 w-20 text-right" role="status">
-            {stateLabel[state]}
-          </span>
-        </div>
-      </header>
+    <PageShell
+      title="AI Vision"
+      accent="yellow"
+      onBack={() => { stopCamera(); navigate("/"); }}
+      headerRight={
+        <span className="text-sm text-stone-400" role="status">{stateLabel[state]}</span>
+      }
+      className="flex flex-col"
+    >
 
       {/* Camera feed */}
       <div className="flex-1 relative bg-black">
@@ -205,10 +202,10 @@ export default function VisionAssistantPage() {
 
       {/* Description panel */}
       {description && (
-        <div className="bg-gray-900 border-t border-gray-700 px-4 py-4 max-h-56 overflow-y-auto">
+        <div className="bg-surface-1 border-t border-surface-border px-4 py-4 max-h-56 overflow-y-auto">
           <div className="max-w-lg mx-auto">
             <div className="flex items-start justify-between gap-2 mb-3">
-              <p className="text-gray-200 text-base leading-relaxed flex-1">{description}</p>
+              <p className="text-stone-200 text-base leading-relaxed flex-1">{description}</p>
               <Button
                 variant="ghost"
                 onClick={repeatDescription}
@@ -222,25 +219,25 @@ export default function VisionAssistantPage() {
             <div className="flex flex-wrap gap-2" role="group" aria-label="Description actions">
               <button
                 onClick={copyDescription}
-                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 transition-colors"
               >
                 Copy
               </button>
               <button
                 onClick={sendToReader}
-                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 transition-colors"
               >
                 Send to Reader
               </button>
               <button
                 onClick={sendToTactile}
-                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 transition-colors"
               >
                 Send to Tactile
               </button>
               <button
                 onClick={clearHistory}
-                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ml-auto"
+                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 border border-rose-400/30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 ml-auto transition-colors"
                 aria-label="Clear vision history"
               >
                 Clear
@@ -251,7 +248,7 @@ export default function VisionAssistantPage() {
       )}
 
       {/* Controls */}
-      <div className="bg-gray-900 border-t border-gray-700 px-4 py-4">
+      <div className="bg-surface-0/95 border-t border-surface-border backdrop-blur px-4 py-4">
         <div className="flex items-center justify-center gap-4 max-w-lg mx-auto">
           {/* Upload button */}
           <Button
@@ -312,9 +309,9 @@ export default function VisionAssistantPage() {
 
       {/* History */}
       {history.length > 1 && (
-        <div className="bg-gray-950 border-t border-gray-800 px-4 py-3">
-          <details className="max-w-lg mx-auto">
-            <summary className="text-sm text-gray-400 cursor-pointer min-h-touch flex items-center">
+        <div className="bg-surface-1 border-t border-surface-border px-4 py-3">
+          <details className="max-w-3xl mx-auto">
+            <summary className="text-sm text-stone-400 cursor-pointer min-h-touch flex items-center select-none">
               Previous descriptions ({history.length})
             </summary>
             <ul className="mt-2 space-y-2">
@@ -322,10 +319,10 @@ export default function VisionAssistantPage() {
                 <li key={entry.id}>
                   <button
                     onClick={() => speechEngine.interrupt(entry.description)}
-                    className="w-full text-left bg-gray-900 rounded-lg p-3 text-sm text-gray-300 hover:bg-gray-800 min-h-touch"
+                    className="w-full text-left bg-surface-2 border border-surface-border rounded-xl p-3 text-sm text-stone-300 hover:bg-surface-3 min-h-touch transition-colors"
                     aria-label={`Replay: ${entry.description.slice(0, 50)}...`}
                   >
-                    <span className="text-gray-500 text-xs block mb-1">
+                    <span className="text-stone-500 text-xs block mb-1">
                       {new Date(entry.timestamp).toLocaleTimeString()}
                     </span>
                     {entry.description.slice(0, 150)}
@@ -337,6 +334,6 @@ export default function VisionAssistantPage() {
           </details>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

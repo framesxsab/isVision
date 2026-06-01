@@ -14,6 +14,7 @@ import { useAnnounce } from "@/core/a11y/AriaLive";
 // accidental refresh during a study session, but clears at tab close so
 // nothing is silently retained across sessions for privacy.
 const POSITION_KEY_PREFIX = "isvisible.reader.pos:";
+const API_READER_FETCH = "/api/reader/fetch";
 
 function readSavedPosition(url: string): number | null {
   try {
@@ -346,7 +347,7 @@ export function useReader() {
  * We no longer touch any third-party CORS proxy.
  */
 async function fetchArticleHtml(url: string): Promise<string> {
-  const response = await fetch("/api/reader/fetch", {
+  const response = await fetch(API_READER_FETCH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),

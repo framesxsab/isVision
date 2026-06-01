@@ -13,8 +13,8 @@
     bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
   }
 
-  .text-gradient-cyan {
-    background: linear-gradient(135deg, #67e8f9 0%, #22d3ee 50%, #a78bfa 100%);
+  .text-gradient-warm {
+    background: linear-gradient(135deg, #fde047 0%, #fb923c 50%, #ffffff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -41,12 +41,12 @@
   body {
     min-height: 100vh;
     background:
-      radial-gradient(900px 480px at 0% -10%, rgba(34, 211, 238, 0.10) 0%, rgba(34, 211, 238, 0) 60%),
-      radial-gradient(700px 420px at 100% -8%, rgba(167, 139, 250, 0.10) 0%, rgba(167, 139, 250, 0) 55%),
-      radial-gradient(600px 360px at 50% 110%, rgba(34, 211, 238, 0.06) 0%, rgba(34, 211, 238, 0) 60%),
+      radial-gradient(900px 480px at 0% -10%, rgba(251, 146, 60, 0.10) 0%, rgba(251, 146, 60, 0) 60%),
+      radial-gradient(700px 420px at 100% -8%, rgba(253, 224, 71, 0.10) 0%, rgba(253, 224, 71, 0) 55%),
+      radial-gradient(600px 360px at 50% 110%, rgba(251, 146, 60, 0.06) 0%, rgba(251, 146, 60, 0) 60%),
       #07090c;
     background-attachment: fixed;
-    color: #f5f7fa;
+    color: #ffffff;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
@@ -55,7 +55,7 @@
   }
 
   *:focus-visible {
-    outline: 3px solid #22d3ee;
+    outline: 3px solid #fb923c;
     outline-offset: 3px;
     border-radius: 6px;
   }
@@ -77,16 +77,16 @@
   }
 
   input[type="range"] {
-    accent-color: #22d3ee;
+    accent-color: #fb923c;
   }
 
   input[type="checkbox"] {
-    accent-color: #06b6d4;
+    accent-color: #f97316;
   }
 
   ::selection {
-    background: rgba(34, 211, 238, 0.32);
-    color: #f5f7fa;
+    background: rgba(251, 146, 60, 0.40);
+    color: #ffffff;
   }
 
   @media (prefers-reduced-motion: reduce) {

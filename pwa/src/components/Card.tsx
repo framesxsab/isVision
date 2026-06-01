@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type CardAccent = "cyan" | "violet" | "amber" | "emerald" | "rose" | "indigo";
+export type CardAccent = "orange" | "yellow" | "amber" | "emerald" | "rose";
 
 interface CardProps {
   title: string;
@@ -22,21 +22,21 @@ const accentStyles: Record<CardAccent, {
   chevron: string;
   meta: string;
 }> = {
-  cyan: {
-    iconWrap: "bg-cyan-500/10 border-cyan-400/30 group-hover:border-cyan-300/60 group-hover:bg-cyan-500/15",
-    iconColor: "text-cyan-300",
-    rail: "from-cyan-400/0 via-cyan-400/70 to-cyan-400/0",
-    ring: "group-hover:ring-cyan-400/30",
-    chevron: "text-cyan-300/60 group-hover:text-cyan-200 group-hover:translate-x-0.5",
-    meta: "text-cyan-300/80",
+  orange: {
+    iconWrap: "bg-orange-500/10 border-orange-400/30 group-hover:border-orange-300/60 group-hover:bg-orange-500/15",
+    iconColor: "text-orange-300",
+    rail: "from-orange-400/0 via-orange-400/70 to-orange-400/0",
+    ring: "group-hover:ring-orange-400/30",
+    chevron: "text-orange-300/60 group-hover:text-orange-200 group-hover:translate-x-0.5",
+    meta: "text-orange-300/80",
   },
-  violet: {
-    iconWrap: "bg-violet-500/10 border-violet-400/30 group-hover:border-violet-300/60 group-hover:bg-violet-500/15",
-    iconColor: "text-violet-300",
-    rail: "from-violet-400/0 via-violet-400/70 to-violet-400/0",
-    ring: "group-hover:ring-violet-400/30",
-    chevron: "text-violet-300/60 group-hover:text-violet-200 group-hover:translate-x-0.5",
-    meta: "text-violet-300/80",
+  yellow: {
+    iconWrap: "bg-yellow-500/10 border-yellow-400/30 group-hover:border-yellow-300/60 group-hover:bg-yellow-500/15",
+    iconColor: "text-yellow-300",
+    rail: "from-yellow-400/0 via-yellow-400/70 to-yellow-400/0",
+    ring: "group-hover:ring-yellow-400/30",
+    chevron: "text-yellow-300/60 group-hover:text-yellow-200 group-hover:translate-x-0.5",
+    meta: "text-yellow-300/80",
   },
   amber: {
     iconWrap: "bg-amber-500/10 border-amber-400/30 group-hover:border-amber-300/60 group-hover:bg-amber-500/15",
@@ -62,14 +62,6 @@ const accentStyles: Record<CardAccent, {
     chevron: "text-rose-300/60 group-hover:text-rose-200 group-hover:translate-x-0.5",
     meta: "text-rose-300/80",
   },
-  indigo: {
-    iconWrap: "bg-indigo-500/10 border-indigo-400/30 group-hover:border-indigo-300/60 group-hover:bg-indigo-500/15",
-    iconColor: "text-indigo-300",
-    rail: "from-indigo-400/0 via-indigo-400/70 to-indigo-400/0",
-    ring: "group-hover:ring-indigo-400/30",
-    chevron: "text-indigo-300/60 group-hover:text-indigo-200 group-hover:translate-x-0.5",
-    meta: "text-indigo-300/80",
-  },
 };
 
 export function Card({
@@ -78,7 +70,7 @@ export function Card({
   icon,
   onClick,
   className = "",
-  accent = "cyan",
+  accent = "orange",
   meta,
 }: CardProps) {
   const a = accentStyles[accent];

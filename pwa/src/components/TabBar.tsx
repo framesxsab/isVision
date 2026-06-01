@@ -23,7 +23,7 @@ export function TabBar() {
       className="fixed left-0 right-0 z-40 pointer-events-none"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
     >
-      <div className="max-w-md mx-auto px-4 pointer-events-auto">
+      <div className="max-w-md sm:max-w-lg lg:max-w-xl mx-auto px-4 pointer-events-auto">
         <div className="
           relative
           flex items-stretch justify-around

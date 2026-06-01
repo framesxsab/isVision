@@ -393,8 +393,8 @@ export default function SettingsPage() {
         id="display"
         title="Display"
         description="Contrast and font sizing."
-        icon={<span className="text-violet-300"><DisplayIcon /></span>}
-        accent="bg-violet-500/10 border-violet-400/30"
+        icon={<span className="text-yellow-300"><DisplayIcon /></span>}
+        accent="bg-yellow-500/10 border-yellow-400/30"
       >
         <div className="space-y-4">
           <ToggleRow
@@ -520,8 +520,8 @@ function SetupPanel({
           ? "Everything's configured. Run setup again any time to revisit."
           : "Some setup items aren't complete. You can finish them any time."
       }
-      icon={<span className="text-indigo-300"><SetupIcon /></span>}
-      accent="bg-indigo-500/10 border-indigo-400/30"
+      icon={<span className="text-yellow-300"><SetupIcon /></span>}
+      accent="bg-yellow-500/10 border-yellow-400/30"
     >
       <ul className="space-y-2 mb-4" aria-label="Setup status">
         {rows.map((row) => (

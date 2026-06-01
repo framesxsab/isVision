@@ -6,6 +6,7 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { TabBar } from "@/components/TabBar";
+import { VoiceFab } from "@/components/VoiceFab";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useRouteAnnounce } from "@/core/hooks/useRouteAnnounce";
 import { useGlobalVoiceHotkey } from "@/core/hooks/useGlobalVoiceHotkey";
@@ -119,6 +120,7 @@ export default function App() {
           </Suspense>
         </ErrorBoundary>
       </main>
+      <VoiceFab />
       <TabBar />
     </div>
   );

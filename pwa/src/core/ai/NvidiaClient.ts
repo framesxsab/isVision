@@ -6,6 +6,9 @@
  * variables.
  */
 
+const API_VISION = "/api/vision/describe";
+const API_INTENT = "/api/voice/intent";
+
 interface VisionResponse {
   description?: string;
   error?: string;
@@ -21,7 +24,7 @@ export async function describeImage(
   base64Image: string,
   context?: string
 ): Promise<string> {
-  const response = await fetch("/api/vision/describe", {
+  const response = await fetch(API_VISION, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ base64Image, context }),
@@ -40,7 +43,7 @@ export async function parseIntent(
   transcript: string,
   availableCommands: string[]
 ): Promise<{ command: string | null; confidence: number }> {
-  const response = await fetch("/api/voice/intent", {
+  const response = await fetch(API_INTENT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ transcript, availableCommands }),
