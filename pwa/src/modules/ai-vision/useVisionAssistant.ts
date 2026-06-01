@@ -249,9 +249,14 @@ export function useVisionAssistant() {
       announce("Analyzing uploaded image");
       speechEngine.interrupt("Analyzing uploaded image.");
 
+      const abort = new AbortController();
+      captureAbortRef.current = abort;
+
       try {
         const base64 = await fileToBase64(file);
-        const result = await describeImage(base64);
+        if (abort.signal.aborted) return;
+        const result = await describeImage(base64, undefined, abort.signal);
+        if (abort.signal.aborted) return;
         setDescription(result);
         setError(null);
 
@@ -268,13 +273,18 @@ export function useVisionAssistant() {
         speechEngine.interrupt(result);
         setState("idle");
       } catch (err) {
+        if (abort.signal.aborted) return;
         const msg =
-          err instanceof Error
-            ? `Error: ${err.message}`
-            : "Could not analyze image.";
+          err instanceof Error && err.name === "TimeoutError"
+            ? "Vision service took too long. Check your connection and try again."
+            : err instanceof Error
+              ? `Error: ${err.message}`
+              : "Could not analyze image.";
         setError(msg);
         setState("idle");
         speechEngine.interrupt(msg);
+      } finally {
+        if (captureAbortRef.current === abort) captureAbortRef.current = null;
       }
     },
     [announce]
