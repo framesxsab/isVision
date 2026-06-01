@@ -292,7 +292,7 @@ export default function VoiceNavPage() {
                         <span className="text-stone-100 font-medium text-sm">
                           "{cmd.patterns[0]}"
                         </span>
-                        <span className="text-stone-500 text-xs ml-4 text-right">{cmd.description}</span>
+                        <span className="text-stone-300 text-xs ml-4 text-right">{cmd.description}</span>
                       </li>
                     ))}
                   </ul>

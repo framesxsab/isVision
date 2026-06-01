@@ -119,8 +119,8 @@ test.describe("Tactile Drill", () => {
     // The third score tile (Streak) renders the number; after one attempt
     // attempts > 0 even if wrong. We check the visible accuracy chip in the
     // header.
-    await expect(page.locator("header div[aria-hidden='true']")).toHaveText(/%/);
+    await expect(page.locator("[data-testid='accuracy-chip']")).toHaveText(/%/);
     await page.getByRole("button", { name: "Reset score" }).click();
-    await expect(page.locator("header div[aria-hidden='true']")).toHaveText("");
+    await expect(page.locator("[data-testid='accuracy-chip']")).toHaveText("");
   });
 });

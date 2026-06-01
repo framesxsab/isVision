@@ -249,7 +249,7 @@ export default function TactileDrillPage() {
       title="Tactile Drill"
       accent="yellow"
       headerRight={
-        <div className="text-sm text-stone-400" aria-hidden="true">{score.attempts > 0 ? `${accuracy}%` : ""}</div>
+        <div className="text-sm text-stone-400" aria-hidden="true" data-testid="accuracy-chip">{score.attempts > 0 ? `${accuracy}%` : ""}</div>
       }
     >
       <div className="flex-1 px-4 py-5 pb-nav-action max-w-3xl mx-auto w-full space-y-6">

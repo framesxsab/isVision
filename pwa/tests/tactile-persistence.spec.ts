@@ -123,13 +123,13 @@ test.describe("Tactile Drill persistence", () => {
     // header is how the score reaches the DOM.
     await page.locator("#drill-input").fill("zzz");
     await page.locator("#drill-input").press("Enter");
-    await expect(page.locator("header div[aria-hidden='true']")).toHaveText(/%/);
+    await expect(page.locator("[data-testid='accuracy-chip']")).toHaveText(/%/);
 
     await page.reload();
     await page.waitForLoadState("networkidle");
-    await expect(page.locator("header div[aria-hidden='true']")).toHaveText(/%/);
+    await expect(page.locator("[data-testid='accuracy-chip']")).toHaveText(/%/);
 
     await page.getByRole("button", { name: "Reset score" }).click();
-    await expect(page.locator("header div[aria-hidden='true']")).toHaveText("");
+    await expect(page.locator("[data-testid='accuracy-chip']")).toHaveText("");
   });
 });
