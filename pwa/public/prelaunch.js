@@ -6,6 +6,10 @@
 // appears once per browser session.
 (function () {
   try {
+    // Skip under browser automation (Playwright, etc.) — the modal blocks
+    // pointer events and would break every test, and automated runs don't
+    // need the speechSynthesis unlock gesture.
+    if (navigator.webdriver) return;
     if (sessionStorage.getItem("isvisible.welcomed") === "1") return;
     var host = document.getElementById("prelaunch-audio");
     if (!host) return;
