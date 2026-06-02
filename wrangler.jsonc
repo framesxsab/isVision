@@ -2,11 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "isvision",
   "compatibility_date": "2026-06-01",
+  "main": "pwa/worker/index.js",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "pwa/dist"
+    "directory": "pwa/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
   },
   "compatibility_flags": [
     "nodejs_compat"
