@@ -24,7 +24,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const description = await callNvidia(
       apiKey,
-      env.NVIDIA_VISION_MODEL ?? "meta/llama-4-maverick-17b-128e-instruct",
+      env.NVIDIA_VISION_MODEL ?? "google/paligemma",
       [
         { role: "system", content: SYSTEM_PROMPT },
         {
