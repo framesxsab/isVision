@@ -1,4 +1,4 @@
-import { callNvidia } from "../../../_shared/nvidia.js";
+import { callNvidia } from "../../_shared/nvidia.js";
 
 export async function onRequestPost({ request, env }) {
   const apiKey = env.NVIDIA_API_KEY;

@@ -1,4 +1,4 @@
-import { callNvidia } from "../../../_shared/nvidia.js";
+import { callNvidia } from "../../_shared/nvidia.js";
 
 const SYSTEM_PROMPT =
   "You are a visual assistant for a blind user. Describe the image in detail, focusing on text content, people, objects, spatial layout, colors, and safety-relevant information. Be concise and start with the most important information.";
