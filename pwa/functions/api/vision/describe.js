@@ -41,6 +41,7 @@ export async function onRequestPost({ request, env }) {
         },
       ],
       1024,
+      env.NVIDIA_VISION_API_URL,
     );
     return Response.json({ description });
   } catch (err) {

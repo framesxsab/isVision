@@ -1,7 +1,8 @@
-const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
+const DEFAULT_ENDPOINT = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-export async function callNvidia(apiKey, model, messages, maxTokens = 1024) {
-  const res = await fetch(`${NVIDIA_BASE}/chat/completions`, {
+export async function callNvidia(apiKey, model, messages, maxTokens = 1024, endpoint) {
+  const url = endpoint && endpoint.trim() ? endpoint.trim() : DEFAULT_ENDPOINT;
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
