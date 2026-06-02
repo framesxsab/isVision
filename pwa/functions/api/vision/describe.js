@@ -1,6 +1,14 @@
-import { callNvidia } from "../../_shared/nvidia.js";
+// NVIDIA's VLM endpoint for vision-language models (PaliGemma, Kosmos-2,
+// NVLM, etc.) expects the image embedded inline in the user message
+// content as <img src="data:image/jpeg;base64,..."/>, not the separate
+// image_url content-type array that the chat-completions endpoint uses.
+// We POST directly here rather than going through _shared/nvidia.js so
+// voice intent (chat-completions) and vision (VLM) can each keep their
+// native request shape.
 
-const SYSTEM_PROMPT =
+const DEFAULT_ENDPOINT = "https://ai.api.nvidia.com/v1/vlm/google/paligemma";
+
+const PROMPT_PREFIX =
   "You are a visual assistant for a blind user. Describe the image in detail, focusing on text content, people, objects, spatial layout, colors, and safety-relevant information. Be concise and start with the most important information.";
 
 export async function onRequestPost({ request, env }) {
@@ -21,28 +29,38 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ error: "base64Image is required." }, { status: 400 });
   }
 
+  const endpoint = env.NVIDIA_VISION_API_URL?.trim() || DEFAULT_ENDPOINT;
+  const userContext = typeof context === "string" && context.trim()
+    ? context.trim()
+    : "Describe this image for a blind user.";
+  const prompt = `${PROMPT_PREFIX} ${userContext} <img src="data:image/jpeg;base64,${base64Image}" />`;
+
   try {
-    const description = await callNvidia(
-      apiKey,
-      env.NVIDIA_VISION_MODEL ?? "google/paligemma",
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
-            {
-              type: "text",
-              text: typeof context === "string" && context.trim()
-                ? context
-                : "Describe this image for a blind user.",
-            },
-          ],
-        },
-      ],
-      1024,
-      env.NVIDIA_VISION_API_URL,
-    );
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 1024,
+        temperature: 0.2,
+        top_p: 0.7,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return Response.json(
+        { error: `NVIDIA VLM error (${res.status}): ${text || res.statusText}` },
+        { status: 502 },
+      );
+    }
+
+    const data = await res.json();
+    const description = data?.choices?.[0]?.message?.content ?? "";
     return Response.json({ description });
   } catch (err) {
     return Response.json(
