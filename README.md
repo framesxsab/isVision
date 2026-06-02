@@ -136,6 +136,34 @@ npm test          # Vitest — pure logic
 npm run test:a11y # Playwright — routes, persistence, offline, axe
 ```
 
+## Deploying to Cloudflare Workers
+
+The PWA ships as static assets served by a Cloudflare Worker. `wrangler.jsonc` at the repo root points `assets.directory` at `pwa/dist`, so a build has to run before `wrangler deploy`.
+
+**Cloudflare Workers Builds (dashboard CI) silently ignores the `build` field in `wrangler.jsonc`.** Configure the build in the dashboard instead:
+
+- Workers & Pages → `isvision` → Settings → Build → Build Configuration
+  - Build command: `cd pwa && npm ci && npm run build`
+  - Deploy command: `npx wrangler deploy` (default)
+  - Root directory: leave empty — moving it breaks wrangler's lookup for `wrangler.jsonc`
+
+Local one-shot deploy:
+
+```bash
+cd pwa && npm ci && npm run build
+cd .. && npx wrangler deploy
+```
+
+### Production security headers
+
+`pwa/public/_headers` is copied into `pwa/dist/` at build time and applied by Cloudflare. It sets `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a camera/mic-only `Permissions-Policy`, and a header-delivered `frame-ancestors 'none'`. `frame-ancestors` in `<meta>` is browser-ignored, so it has to live in the header file.
+
+### CSP and inline scripts
+
+`pwa/index.html` declares `script-src 'self' 'wasm-unsafe-eval'` with no `'unsafe-inline'` or hash. Anything that must run before the React bundle parses goes in `pwa/public/` and is referenced via `<script src="/file.js">`. See `pwa/public/prelaunch.js` for the first-launch audio gate that unlocks `speechSynthesis` on first tap; it bails out under `navigator.webdriver` so Playwright runs aren't blocked by the modal.
+
+Vite's dev server injects its own inline HMR modules, which would be blocked by that CSP. The `csp-dev-strip` plugin in `pwa/vite.config.ts` removes the meta CSP in `serve` mode only — production builds keep it intact.
+
 Hardware starter (out of scope for the current software MVP; treated as a future phase):
 
 - [Tactile protocol](docs/tactile-protocol.md)
