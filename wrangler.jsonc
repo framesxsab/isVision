@@ -8,10 +8,6 @@
   "assets": {
     "directory": "pwa/dist"
   },
-  "build": {
-    "command": "npm ci && npm run build",
-    "cwd": "pwa"
-  },
   "compatibility_flags": [
     "nodejs_compat"
   ]
