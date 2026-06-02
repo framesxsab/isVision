@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
     <meta name="theme-color" content="#1e1b4b" />
     <meta name="description" content="Accessibility platform for blind and visually impaired users. Touch, hear, and navigate the visual world." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
     <link rel="apple-touch-icon" href="/icons/icon.svg" />
     <title>isVisible</title>
@@ -13,64 +13,7 @@
   <body class="bg-gray-950 text-white antialiased">
     <div id="root"></div>
     <div id="prelaunch-audio" hidden></div>
-    <script>
-      // First-launch audio gate — runs before the React bundle parses so
-      // a blind user is not stranded in silence while ~100kb of JS loads.
-      // Browsers (especially iOS Safari) only unlock speechSynthesis after
-      // a user gesture, so we render a "Tap anywhere" affordance and speak
-      // the welcome on first interaction. Gated by sessionStorage so it
-      // appears once per browser session.
-      (function () {
-        try {
-          if (sessionStorage.getItem("isvisible.welcomed") === "1") return;
-          var host = document.getElementById("prelaunch-audio");
-          if (!host) return;
-          host.hidden = false;
-          host.setAttribute("role", "dialog");
-          host.setAttribute("aria-modal", "true");
-          host.setAttribute("aria-label", "Welcome to isVisible");
-          host.style.cssText =
-            "position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:#0c0a09;color:#fafaf9;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;";
-          host.innerHTML =
-            '<div style="max-width:28rem;text-align:center;">' +
-            '<div style="font-size:1.75rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:0.75rem;">isVisible</div>' +
-            '<p style="font-size:1.1rem;line-height:1.5;color:#d6d3d1;margin:0 0 1.25rem;">Tap anywhere to begin. You will hear a welcome message.</p>' +
-            '<button type="button" id="prelaunch-tap" autofocus aria-label="Begin and hear welcome" style="min-height:48px;padding:0.75rem 1.5rem;border-radius:0.75rem;border:1px solid #4f46e5;background:#4338ca;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;">Tap to begin</button>' +
-            "</div>";
-          var dismissed = false;
-          function dismiss() {
-            if (dismissed) return;
-            dismissed = true;
-            try { sessionStorage.setItem("isvisible.welcomed", "1"); } catch (_) {}
-            try {
-              if ("speechSynthesis" in window) {
-                var u = new SpeechSynthesisUtterance(
-                  "Welcome to isVisible. Loading your accessible workspace."
-                );
-                u.rate = 1.0;
-                u.pitch = 1.0;
-                u.volume = 1.0;
-                window.speechSynthesis.speak(u);
-              }
-            } catch (_) {}
-            host.style.opacity = "0";
-            host.style.transition = "opacity 200ms";
-            setTimeout(function () { host.remove(); }, 220);
-          }
-          host.addEventListener("click", dismiss, { once: true });
-          host.addEventListener("touchstart", dismiss, { once: true, passive: true });
-          // Keyboard path — any key on the focused button dismisses too.
-          host.addEventListener("keydown", function (e) {
-            if (e.key === "Enter" || e.key === " " || e.key === "Tab") {
-              e.preventDefault();
-              dismiss();
-            }
-          });
-        } catch (_) {
-          // Never block the app on a welcome screen failure.
-        }
-      })();
-    </script>
+    <script src="/prelaunch.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

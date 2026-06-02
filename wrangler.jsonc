@@ -6,7 +6,7 @@
     "enabled": true
   },
   "assets": {
-    "directory": "pwa"
+    "directory": "pwa/dist"
   },
   "compatibility_flags": [
     "nodejs_compat"

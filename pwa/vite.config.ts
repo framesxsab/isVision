@@ -16,6 +16,21 @@ export default defineConfig({
     },
   },
   plugins: [
+    // Vite's dev server injects inline <script> blocks for HMR and React Fast
+    // Refresh. They would be blocked by the production CSP (which has no
+    // 'unsafe-inline' and no nonce/hash). Strip the meta CSP in dev only —
+    // the production build keeps it, and Cloudflare adds frame-ancestors via
+    // _headers.
+    {
+      name: "csp-dev-strip",
+      apply: "serve",
+      transformIndexHtml(html) {
+        return html.replace(
+          /\s*<meta http-equiv="Content-Security-Policy"[^>]*>\s*/,
+          "\n    ",
+        );
+      },
+    },
     react(),
     VitePWA({
       registerType: "prompt",
