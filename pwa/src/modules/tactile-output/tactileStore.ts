@@ -6,9 +6,10 @@
 // schema drift breaking either.
 //
 // What we persist:
-//   - Lab: last imported text (only via clipboard/file/handoff — typing into
-//     the textarea is transient), grade, language, group size, output format,
-//     hold_ms, blank-between-frames.
+//   - Lab: grade, language, group size, output format, hold_ms,
+//     blank-between-frames, and the explicit "remember imports" preference.
+//     Imported clipboard/file/handoff text is persisted only when that
+//     preference is enabled.
 //   - Drill: cumulative score, last drill mode, last speech mode.
 //
 // What we deliberately don't persist: the textarea contents as the user
@@ -30,6 +31,7 @@ interface TactileState {
   // Tactile Lab
   lastImportedText: string;
   lastImportSource: string;
+  persistImportedText: boolean;
   translatorMode: TranslatorMode;
   language: LiblouisTableId;
   groupSize: number;
@@ -46,6 +48,7 @@ interface TactileState {
 
   // Actions
   rememberImportedText: (text: string, source: string) => void;
+  setPersistImportedText: (enabled: boolean) => void;
   setTranslatorMode: (mode: TranslatorMode) => void;
   setLanguage: (id: LiblouisTableId) => void;
   setGroupSize: (size: number) => void;
@@ -86,12 +89,35 @@ function clampHoldMs(value: number): number {
   return Math.max(HOLD_MS_MIN, Math.min(HOLD_MS_MAX, Math.round(value)));
 }
 
+function migratePersistedState(persistedState: unknown, version: number): Partial<TactileState> {
+  if (!persistedState || typeof persistedState !== "object") {
+    return {};
+  }
+
+  const state = persistedState as Partial<TactileState>;
+  const persistImportedText = version >= 3 ? Boolean(state.persistImportedText) : false;
+
+  return {
+    ...state,
+    persistImportedText,
+    lastImportedText:
+      persistImportedText && typeof state.lastImportedText === "string"
+        ? state.lastImportedText
+        : "",
+    lastImportSource:
+      persistImportedText && typeof state.lastImportSource === "string"
+        ? state.lastImportSource
+        : "",
+  };
+}
+
 export const useTactileStore = create<TactileState>()(
   persist(
     (set) => ({
       // Lab defaults
       lastImportedText: "",
       lastImportSource: "",
+      persistImportedText: false,
       translatorMode: "g1",
       language: "en-g2",
       groupSize: 1,
@@ -108,6 +134,11 @@ export const useTactileStore = create<TactileState>()(
 
       rememberImportedText: (text, source) =>
         set({ lastImportedText: text, lastImportSource: source }),
+      setPersistImportedText: (enabled) =>
+        set({
+          persistImportedText: Boolean(enabled),
+          ...(enabled ? {} : { lastImportedText: "", lastImportSource: "" }),
+        }),
       setTranslatorMode: (mode) =>
         set({ translatorMode: VALID_TRANSLATOR_MODES.has(mode) ? mode : "g1" }),
       setLanguage: (id) => set({ language: VALID_LANGUAGES.has(id) ? id : "en-g2" }),
@@ -134,14 +165,13 @@ export const useTactileStore = create<TactileState>()(
     }),
     {
       name: TACTILE_STORE_KEY,
-      // version lets us migrate later if the shape changes — bumping it
-      // invalidates older stored state and falls back to the defaults
-      // above, which is safer than leaving a half-populated state.
-      version: 2,
-      // Defensive merge: when version bumps the previous payload is dropped,
-      // but newer keys we add (drillDifficulty, drillHistory) need to
-      // survive future loads too. zustand's default deep-merge handles
-      // that as long as we keep additive shape changes.
+      version: 3,
+      migrate: migratePersistedState,
+      partialize: (state) => ({
+        ...state,
+        lastImportedText: state.persistImportedText ? state.lastImportedText : "",
+        lastImportSource: state.persistImportedText ? state.lastImportSource : "",
+      }),
     }
   )
 );

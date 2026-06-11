@@ -61,7 +61,7 @@ export const DISCLOSURES: Disclosure[] = [
     scope: "local",
     summary: "Stored in your browser via localStorage. You can clear it any time.",
     detail:
-      "Your translator/language/output settings, last imported text, and drill score live in localStorage under the keys isvisible-settings and isvisible-tactile. Clearing site data in your browser removes both.",
+      "Your translator/language/output settings and drill score live in localStorage under the keys isvisible-settings and isvisible-tactile. Imported Tactile Lab text is saved there only if you turn on Remember Tactile Lab imports across restarts. Clearing site data in your browser removes both keys.",
   },
   {
     id: "speech-output",

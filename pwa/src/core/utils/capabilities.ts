@@ -7,12 +7,17 @@
 // any time (e.g. in a useMemo on mount) without worrying about side effects.
 
 export type CapabilityId =
+  | "camera"
+  | "microphone"
   | "web-serial"
   | "web-hid"
   | "clipboard-read"
   | "clipboard-write"
   | "speech-synthesis"
-  | "speech-recognition";
+  | "speech-recognition"
+  | "vibration"
+  | "service-worker"
+  | "cache-storage";
 
 export interface CapabilityReport {
   available: boolean;
@@ -21,6 +26,9 @@ export interface CapabilityReport {
   /** Concrete next step the user can take when unavailable. */
   suggestion: string;
 }
+
+export type MediaPermissionKind = "camera" | "microphone";
+export type BrowserPermissionState = "unknown" | "granted" | "denied";
 
 // Each detector returns a CapabilityReport instead of a raw boolean so the UI
 // can render a meaningful "X is unavailable because Y. Try Z." line without
@@ -32,6 +40,38 @@ const CHROMIUM_FAMILY_HINT =
 // We test for a truthy value rather than `"key" in navigator` because tests
 // (and some polyfills) defineProperty(navigator, key, { value: undefined }),
 // which leaves the key in the object but with no actual API behind it.
+
+export function detectCamera(): CapabilityReport {
+  const mediaDevices =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator & { mediaDevices?: MediaDevices }).mediaDevices
+      : undefined;
+  if (mediaDevices?.getUserMedia) {
+    return { available: true, reason: "", suggestion: "" };
+  }
+  return {
+    available: false,
+    reason: "Camera capture is not available in this browser context.",
+    suggestion:
+      "Open the app over HTTPS or localhost, then allow camera access from the browser prompt.",
+  };
+}
+
+export function detectMicrophone(): CapabilityReport {
+  const mediaDevices =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator & { mediaDevices?: MediaDevices }).mediaDevices
+      : undefined;
+  if (mediaDevices?.getUserMedia) {
+    return { available: true, reason: "", suggestion: "" };
+  }
+  return {
+    available: false,
+    reason: "Microphone capture is not available in this browser context.",
+    suggestion:
+      "Open the app over HTTPS or localhost, then allow microphone access for voice navigation.",
+  };
+}
 
 export function detectWebSerial(): CapabilityReport {
   const serial = typeof navigator !== "undefined" ? (navigator as Navigator & { serial?: unknown }).serial : undefined;
@@ -113,15 +153,88 @@ export function detectSpeechRecognition(): CapabilityReport {
   };
 }
 
+export function detectVibration(): CapabilityReport {
+  const vibrate =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator & { vibrate?: unknown }).vibrate
+      : undefined;
+  if (typeof vibrate === "function") {
+    return { available: true, reason: "", suggestion: "" };
+  }
+  return {
+    available: false,
+    reason: "Vibration feedback is not available on this device or browser.",
+    suggestion:
+      "Use speech and spatial audio cues. Many desktop browsers do not expose vibration.",
+  };
+}
+
+export function detectServiceWorker(): CapabilityReport {
+  const serviceWorker =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator & { serviceWorker?: unknown }).serviceWorker
+      : undefined;
+  if (serviceWorker) {
+    return { available: true, reason: "", suggestion: "" };
+  }
+  return {
+    available: false,
+    reason: "Service workers are not available in this browser context.",
+    suggestion:
+      "Install or open the app over HTTPS or localhost so offline app-shell caching can work.",
+  };
+}
+
+export function detectCacheStorage(): CapabilityReport {
+  const cachesApi =
+    typeof globalThis !== "undefined"
+      ? (globalThis as typeof globalThis & { caches?: unknown }).caches
+      : undefined;
+  if (cachesApi) {
+    return { available: true, reason: "", suggestion: "" };
+  }
+  return {
+    available: false,
+    reason: "Cache Storage is not available in this browser context.",
+    suggestion:
+      "Use HTTPS or localhost and avoid private browsing modes that block offline storage.",
+  };
+}
+
 const DETECTORS: Record<CapabilityId, () => CapabilityReport> = {
+  camera: detectCamera,
+  microphone: detectMicrophone,
   "web-serial": detectWebSerial,
   "web-hid": detectWebHid,
   "clipboard-read": detectClipboardRead,
   "clipboard-write": detectClipboardWrite,
   "speech-synthesis": detectSpeechSynthesis,
   "speech-recognition": detectSpeechRecognition,
+  vibration: detectVibration,
+  "service-worker": detectServiceWorker,
+  "cache-storage": detectCacheStorage,
 };
 
 export function detectCapability(id: CapabilityId): CapabilityReport {
   return DETECTORS[id]();
+}
+
+export async function queryMediaPermission(
+  kind: MediaPermissionKind
+): Promise<BrowserPermissionState | null> {
+  const permissions =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator & { permissions?: Permissions }).permissions
+      : undefined;
+
+  if (!permissions?.query) return null;
+
+  try {
+    const status = await permissions.query({ name: kind as PermissionName });
+    if (status.state === "granted") return "granted";
+    if (status.state === "denied") return "denied";
+    return "unknown";
+  } catch {
+    return null;
+  }
 }

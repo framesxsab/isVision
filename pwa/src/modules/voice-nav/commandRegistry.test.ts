@@ -3,6 +3,7 @@ import {
   matchCommand,
   matchCommandWithAlternatives,
   normalizeTranscript,
+  resolveVoiceCommand,
   wordCoverageScore,
 } from "./commandRegistry";
 
@@ -67,6 +68,23 @@ describe("matchCommand", () => {
     expect(result?.command.name).toBe("open_tactile_drill");
   });
 
+  it("matches the missing voice-nav route that the help text advertises", () => {
+    const result = matchCommand("open voice navigation");
+    expect(result?.command.name).toBe("open_voice_nav");
+    expect(result?.command.action).toBe("navigate_voice_nav");
+  });
+
+  it("matches explicit tactile drill controls without stealing generic reader commands", () => {
+    expect(matchCommand("next prompt")?.command.name).toBe("drill_next");
+    expect(matchCommand("repeat prompt")?.command.name).toBe("drill_repeat");
+    expect(matchCommand("reset drill")?.command.name).toBe("drill_reset");
+    expect(matchCommand("next")?.command.name).toBe("next");
+  });
+
+  it("leaves contextual questions for the assistant layer", () => {
+    expect(matchCommand("what is this")).toBeNull();
+  });
+
   it("returns null for empty input", () => {
     expect(matchCommand("")).toBeNull();
     expect(matchCommand("please the")).toBeNull();
@@ -106,6 +124,73 @@ describe("wordCoverageScore", () => {
     // pattern "open reader" words ["open","reader"] both present → coverage match
     const score = wordCoverageScore("open accessible reader", "open reader");
     expect(score).toBeGreaterThan(0);
+  });
+});
+
+describe("resolveVoiceCommand", () => {
+  it("uses the AI fallback when the local heuristic is too weak", async () => {
+    const result = await resolveVoiceCommand(
+      ["the weather is nice", "gibberish phrase"],
+      {
+        minLocalConfidence: 0.75,
+        intentResolver: async () => ({ command: "open_reader", confidence: 0.92 }),
+      }
+    );
+
+    expect(result?.command.name).toBe("open_reader");
+    expect(result?.confidence).toBe(0.92);
+    expect(result?.source).toBe("ai");
+  });
+
+  it("keeps the local match when it is already strong enough", async () => {
+    const result = await resolveVoiceCommand(["open reader"], {
+      minLocalConfidence: 0.75,
+      intentResolver: async () => ({ command: "open_home", confidence: 0.95 }),
+    });
+
+    expect(result?.command.name).toBe("open_reader");
+    expect(result?.confidence).toBeGreaterThanOrEqual(0.95);
+    expect(result?.source).toBe("local");
+  });
+
+  it("falls back to a weak local match when AI resolution fails", async () => {
+    const result = await resolveVoiceCommand(["tactile drll"], {
+      minLocalConfidence: 0.95,
+      intentResolver: async () => {
+        throw new Error("offline");
+      },
+    });
+
+    expect(result?.command.name).toBe("open_tactile_drill");
+    expect(result?.source).toBe("local");
+  });
+
+  it("accepts AI responses that use an allowed command pattern", async () => {
+    const result = await resolveVoiceCommand(["start the newspaper thing"], {
+      intentResolver: async () => ({ command: "open reader", confidence: 0.92 }),
+    });
+
+    expect(result?.command.name).toBe("open_reader");
+    expect(result?.source).toBe("ai");
+  });
+
+  it("rejects low-confidence AI matches instead of executing them", async () => {
+    const result = await resolveVoiceCommand(["start the newspaper thing"], {
+      intentResolver: async () => ({ command: "open reader", confidence: 0.42 }),
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it("does not let an unrelated weak local match boost an AI command", async () => {
+    const result = await resolveVoiceCommand(["tactile drll"], {
+      minLocalConfidence: 0.95,
+      minAiConfidence: 0.70,
+      intentResolver: async () => ({ command: "navigate_settings", confidence: 0.41 }),
+    });
+
+    expect(result?.source).toBe("local");
+    expect(result?.command.name).toBe("open_tactile_drill");
   });
 });
 

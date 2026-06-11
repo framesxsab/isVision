@@ -4,7 +4,8 @@
 // Grade 1 debug translator + braille cells the Tactile Lab uses so a learner
 // can drill before plugging in a real device.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { PageShell, toggleActive, toggleInactive } from "@/components/PageShell";
 import {
@@ -30,6 +31,11 @@ import {
   type DrillPrompt,
 } from "./drillState";
 import { useTactileStore, type DrillSpeechMode } from "./tactileStore";
+import {
+  MODULE_VOICE_ACTION_EVENT,
+  takePendingVoiceAction,
+  type VoiceAction,
+} from "@/modules/voice-nav/voiceActions";
 
 const MODE_OPTIONS: Array<{ id: DrillMode; label: string }> = [
   { id: "letter", label: "Letters" },
@@ -51,8 +57,38 @@ const DIFFICULTY_OPTIONS: Array<{ id: Difficulty; label: string; hint: string }>
   { id: "hard", label: "Hard", hint: "Full alphabet, longer words, 1–999, more punctuation." },
 ];
 
+function moveRadioSelection<T extends string>(
+  event: KeyboardEvent<HTMLElement>,
+  options: readonly { id: T }[],
+  current: T,
+  select: (next: T) => void
+) {
+  const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+  const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+  const first = event.key === "Home";
+  const last = event.key === "End";
+  if (!forward && !backward && !first && !last) return;
+
+  event.preventDefault();
+  const currentIndex = Math.max(0, options.findIndex((option) => option.id === current));
+  const nextIndex = first
+    ? 0
+    : last
+      ? options.length - 1
+      : forward
+        ? (currentIndex + 1) % options.length
+        : (currentIndex - 1 + options.length) % options.length;
+  const next = options[nextIndex]!.id;
+  select(next);
+  window.setTimeout(() => {
+    const target = document.querySelector<HTMLElement>(`[data-radio-value="${next}"]`);
+    target?.focus();
+  }, 0);
+}
+
 export default function TactileDrillPage() {
   const announce = useAnnounce();
+  const location = useLocation();
 
   // Persisted across reloads via tactileStore.
   const mode = useTactileStore((s) => s.drillMode);
@@ -193,6 +229,34 @@ export default function TactileDrillPage() {
     announce("Drill reset. Score cleared.");
   }, [announce, buildNextPrompt, resetDrillScore]);
 
+  useEffect(() => {
+    function runDrillVoiceAction(action: VoiceAction | undefined) {
+      switch (action) {
+        case "drill_next":
+          advance();
+          break;
+        case "drill_previous":
+          goBack();
+          break;
+        case "drill_repeat":
+          repeat();
+          break;
+        case "drill_reset":
+          reset();
+          break;
+      }
+    }
+
+    function handleVoiceAction(event: Event) {
+      runDrillVoiceAction((event as CustomEvent<{ action: VoiceAction }>).detail?.action);
+    }
+
+    window.addEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+    const pending = takePendingVoiceAction(location.pathname);
+    if (pending) window.setTimeout(() => runDrillVoiceAction(pending), 0);
+    return () => window.removeEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+  }, [advance, goBack, location.pathname, repeat, reset]);
+
   const exportCsv = useCallback(() => {
     // historyToCsvWithSummary appends a per-answer accuracy block after the
     // raw attempt log. Spreadsheet importers see two tables; `cat` users see
@@ -264,7 +328,12 @@ export default function TactileDrillPage() {
                 type="button"
                 role="radio"
                 aria-checked={mode === option.id}
+                tabIndex={mode === option.id ? 0 : -1}
+                data-radio-value={option.id}
                 onClick={() => setMode(option.id)}
+                onKeyDown={(event) =>
+                  moveRadioSelection(event, MODE_OPTIONS, mode, setMode)
+                }
                 className={`px-1 py-2 text-xs ${
                   mode === option.id ? toggleActive : toggleInactive
                 }`}
@@ -291,7 +360,12 @@ export default function TactileDrillPage() {
                 type="button"
                 role="radio"
                 aria-checked={difficulty === option.id}
+                tabIndex={difficulty === option.id ? 0 : -1}
+                data-radio-value={option.id}
                 onClick={() => setDifficulty(option.id)}
+                onKeyDown={(event) =>
+                  moveRadioSelection(event, DIFFICULTY_OPTIONS, difficulty, setDifficulty)
+                }
                 className={`px-3 py-2 text-sm ${
                   difficulty === option.id ? toggleActive : toggleInactive
                 }`}
@@ -351,7 +425,12 @@ export default function TactileDrillPage() {
                 type="button"
                 role="radio"
                 aria-checked={speechMode === option.id}
+                tabIndex={speechMode === option.id ? 0 : -1}
+                data-radio-value={option.id}
                 onClick={() => setSpeechMode(option.id)}
+                onKeyDown={(event) =>
+                  moveRadioSelection(event, SPEECH_OPTIONS, speechMode, setSpeechMode)
+                }
                 className={`px-2 py-2 text-sm ${
                   speechMode === option.id ? toggleActive : toggleInactive
                 }`}

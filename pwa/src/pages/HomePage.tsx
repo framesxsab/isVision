@@ -127,15 +127,10 @@ function SectionLabel({ n, label }: { n: string; label: string }) {
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const onboardingComplete = useSettingsStore((s) => s.onboardingComplete);
   const lastSession = useSettingsStore((s) => s.lastSession);
   const setLastSession = useSettingsStore((s) => s.setLastSession);
   const { canInstall, install } = useInstallPrompt();
   const [hint, setHint] = useState("");
-
-  useEffect(() => {
-    if (!onboardingComplete) navigate("/onboarding");
-  }, [onboardingComplete, navigate]);
 
   useEffect(() => {
     const id = window.setTimeout(

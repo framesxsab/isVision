@@ -29,13 +29,26 @@ export type SpeechPriority = "user" | "status";
 
 export interface SpeakOptions {
   priority?: SpeechPriority;
+  remember?: boolean;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onError?: () => void;
+}
+
+interface SpeechQueueItem {
+  text: string;
+  first: boolean;
+  final: boolean;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onError?: () => void;
 }
 
 const MAX_CHUNK_LENGTH = 200;
 
 class SpeechEngineImpl {
   private synth: SpeechSynthesis | null = null;
-  private queue: string[] = [];
+  private queue: SpeechQueueItem[] = [];
   private isSpeaking = false;
   private settings: SpeechSettings = {
     rate: 1.0,
@@ -45,6 +58,7 @@ class SpeechEngineImpl {
   };
   private onEvent: SpeechEventHandler | null = null;
   private initialized = false;
+  private lastSpokenText: string | null = null;
 
   init() {
     if (this.initialized) return;
@@ -93,6 +107,11 @@ class SpeechEngineImpl {
     this.init();
     if (!this.synth) return;
 
+    const normalizedText = text.trim();
+    if (normalizedText && options?.remember !== false) {
+      this.lastSpokenText = normalizedText;
+    }
+
     if (options?.priority === "user") {
       this.synth.cancel();
       this.queue = [];
@@ -100,7 +119,16 @@ class SpeechEngineImpl {
     }
 
     const chunks = this.chunkText(text);
-    this.queue.push(...chunks);
+    this.queue.push(
+      ...chunks.map((chunk, index) => ({
+        text: chunk,
+        first: index === 0,
+        final: index === chunks.length - 1,
+        onStart: options?.onStart,
+        onEnd: options?.onEnd,
+        onError: options?.onError,
+      }))
+    );
 
     if (!this.isSpeaking) {
       this.processQueue();
@@ -112,8 +140,15 @@ class SpeechEngineImpl {
    * Equivalent to `speak(text, { priority: 'user' })`. Kept as a named
    * convenience for the common "user just acted" case.
    */
-  interrupt(text: string) {
-    this.speak(text, { priority: "user" });
+  interrupt(text: string, options?: Omit<SpeakOptions, "priority">) {
+    this.speak(text, { ...options, priority: "user" });
+  }
+
+  /** Replay the most recent spoken text, if any. */
+  repeatLast(): boolean {
+    if (!this.lastSpokenText) return false;
+    this.interrupt(this.lastSpokenText);
+    return true;
   }
 
   /** Stop all speech and clear the queue. */
@@ -122,7 +157,6 @@ class SpeechEngineImpl {
     this.synth.cancel();
     this.queue = [];
     this.isSpeaking = false;
-    this.onEvent?.("end");
   }
 
   /** Pause current speech. */
@@ -147,8 +181,8 @@ class SpeechEngineImpl {
     }
 
     this.isSpeaking = true;
-    const text = this.queue.shift()!;
-    const utterance = new SpeechSynthesisUtterance(text);
+    const item = this.queue.shift()!;
+    const utterance = new SpeechSynthesisUtterance(item.text);
 
     utterance.rate = this.settings.rate;
     utterance.pitch = this.settings.pitch;
@@ -163,13 +197,14 @@ class SpeechEngineImpl {
     }
 
     utterance.onstart = () => {
-      if (this.queue.length === 0) {
-        // Only fire "start" for the first chunk of a speech
+      if (item.first) {
+        item.onStart?.();
+        this.onEvent?.("start");
       }
-      this.onEvent?.("start");
     };
 
     utterance.onend = () => {
+      if (item.final) item.onEnd?.();
       this.processQueue(); // Speak next chunk
     };
 
@@ -177,6 +212,7 @@ class SpeechEngineImpl {
       // "interrupted" is normal when we call cancel()
       if (e.error !== "interrupted") {
         console.error("Speech error:", e.error);
+        item.onError?.();
         this.onEvent?.("error");
       }
       this.isSpeaking = false;

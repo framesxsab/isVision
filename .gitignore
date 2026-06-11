@@ -4,6 +4,8 @@ node_modules/
 # Build output
 pwa/dist/
 pwa/tsconfig.tsbuildinfo
+pwa/*.tsbuildinfo
+pwa/vite.config.d.ts
 
 # Environment variables (NEVER commit these)
 .env
@@ -12,6 +14,7 @@ pwa/tsconfig.tsbuildinfo
 
 # Python
 __pycache__/
+.pytest_cache/
 *.pyc
 
 # IDE

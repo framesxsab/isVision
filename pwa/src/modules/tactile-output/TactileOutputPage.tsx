@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import {
@@ -50,6 +50,8 @@ type NavigatorWithSerial = Navigator & {
 
 const DEFAULT_TEXT = "isVisible tactile output lab";
 const GROUP_SIZES = [1, 4, 8] as const;
+const SERIAL_BAUD_RATE = 115200;
+const SERIAL_FRAME_MARGIN_MS = 25;
 
 // Languages we expose for Grade 2 (Liblouis). The id is a subset of
 // LiblouisTableId; the label is the accessible name shown in the UI.
@@ -58,6 +60,38 @@ const LANGUAGE_OPTIONS = [
   { id: "fr-g2", label: "Français" },
   { id: "de-g2", label: "Deutsch" },
 ] as const;
+
+function moveLanguageSelection(
+  event: ReactKeyboardEvent<HTMLElement>,
+  current: string,
+  select: (next: (typeof LANGUAGE_OPTIONS)[number]["id"]) => void
+) {
+  const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+  const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
+  const first = event.key === "Home";
+  const last = event.key === "End";
+  if (!forward && !backward && !first && !last) return;
+
+  event.preventDefault();
+  const currentIndex = Math.max(0, LANGUAGE_OPTIONS.findIndex((option) => option.id === current));
+  const nextIndex = first
+    ? 0
+    : last
+      ? LANGUAGE_OPTIONS.length - 1
+      : forward
+        ? (currentIndex + 1) % LANGUAGE_OPTIONS.length
+        : (currentIndex - 1 + LANGUAGE_OPTIONS.length) % LANGUAGE_OPTIONS.length;
+  const next = LANGUAGE_OPTIONS[nextIndex]!.id;
+  select(next);
+  window.setTimeout(() => {
+    const target = document.querySelector<HTMLElement>(`[data-radio-value="${next}"]`);
+    target?.focus();
+  }, 0);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 export default function TactileOutputPage() {
   const navigate = useNavigate();
@@ -282,7 +316,7 @@ export default function TactileOutputPage() {
 
     try {
       port = await serial.requestPort();
-      await port.open({ baudRate: 115200 });
+      await port.open({ baudRate: SERIAL_BAUD_RATE });
 
       if (!port.writable) {
         throw new Error("Serial port is not writable.");
@@ -291,7 +325,12 @@ export default function TactileOutputPage() {
       writer = port.writable.getWriter();
       const encoder = new TextEncoder();
 
-      await writer.write(encoder.encode(`${compactText}\n`));
+      for (const line of compactText.split(/\r?\n/)) {
+        await writer.write(encoder.encode(`${line}\n`));
+        if (line.startsWith("F ")) {
+          await sleep(holdMs + SERIAL_FRAME_MARGIN_MS);
+        }
+      }
 
       updateStatus(`Sent ${frames.length} compact frames over serial.`);
       speechEngine.interrupt(`Sent ${frames.length} frames.`);
@@ -473,7 +512,12 @@ export default function TactileOutputPage() {
                         type="button"
                         role="radio"
                         aria-checked={language === option.id}
+                        tabIndex={language === option.id ? 0 : -1}
+                        data-radio-value={option.id}
                         onClick={() => setLanguage(option.id)}
+                        onKeyDown={(event) =>
+                          moveLanguageSelection(event, language, setLanguage)
+                        }
                         className={`px-3 py-2 text-sm ${
                           language === option.id ? toggleActive : toggleInactive
                         }`}

@@ -31,6 +31,53 @@ const OVERALL_TIMEOUT_MS = 15000;
 // after "open" if the user paused even slightly between words.
 const IDLE_AFTER_FINAL_MS = 2500;
 const MAX_ALTERNATIVES = 5;
+const MAX_BUILT_ALTERNATIVES = 20;
+
+export function buildRecognitionAlternatives(
+  finalSegments: string[],
+  segmentAlternatives: string[][]
+): string[] {
+  const normalizedSegments = finalSegments
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean);
+
+  const alternatives = new Set<string>([
+    normalizedSegments.join(" ").trim(),
+  ]);
+
+  if (normalizedSegments.length === 0) {
+    return Array.from(alternatives);
+  }
+
+  const pools = normalizedSegments.map((segment, index) => {
+    const candidatePool = (segmentAlternatives[index] ?? [segment])
+      .map((candidate) => candidate.trim().toLowerCase())
+      .filter(Boolean);
+
+    return (candidatePool.length > 0 ? candidatePool : [segment]).slice(0, MAX_ALTERNATIVES);
+  });
+
+  let candidates = [""];
+  for (const pool of pools) {
+    const next: string[] = [];
+    for (const prefix of candidates) {
+      for (const value of pool) {
+        const candidate = `${prefix} ${value}`.replace(/\s+/g, " ").trim();
+        if (candidate) next.push(candidate);
+        if (next.length >= MAX_BUILT_ALTERNATIVES) break;
+      }
+      if (next.length >= MAX_BUILT_ALTERNATIVES) break;
+    }
+    candidates = next;
+    for (const candidate of candidates) {
+      alternatives.add(candidate);
+      if (alternatives.size >= MAX_BUILT_ALTERNATIVES) break;
+    }
+    if (alternatives.size >= MAX_BUILT_ALTERNATIVES) break;
+  }
+
+  return Array.from(alternatives).slice(0, MAX_BUILT_ALTERNATIVES);
+}
 
 class SpeechRecognitionEngine {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,10 +118,9 @@ class SpeechRecognitionEngine {
       // Track final segments across the session so a multi-word phrase like
       // "open the accessible reader" arrives whole instead of as fragments.
       const finalSegments: string[] = [];
-      // Alternatives are per-result-segment in the browser API; keep the
-      // alternatives for the LAST final segment as our matcher's secondary
-      // candidates. The last segment is usually the load-bearing keyword.
-      let lastSegmentAlternatives: string[] = [];
+      // Capture alternatives for every final segment so the matcher can try
+      // full-phrase variants, not just the last word or last chunk.
+      const finalSegmentAlternatives: string[][] = [];
       let idleTimer: number | null = null;
 
       const clearIdle = () => {
@@ -109,18 +155,10 @@ class SpeechRecognitionEngine {
           finish(() => reject(new Error("No speech detected. Try again.")));
           return;
         }
-        // Build alternatives: the full joined utterance first, then variants
-        // where the last segment is swapped for each browser alternative.
-        // This lets the matcher try "open reader", "open redder", "open ridder"
-        // when the user said "open reader" but the browser's top guess was off.
-        const alternatives: string[] = [joined];
-        if (finalSegments.length > 0 && lastSegmentAlternatives.length > 1) {
-          const prefix = finalSegments.slice(0, -1).join(" ").trim();
-          for (const alt of lastSegmentAlternatives.slice(1)) {
-            const merged = (prefix ? `${prefix} ${alt}` : alt).toLowerCase();
-            if (!alternatives.includes(merged)) alternatives.push(merged);
-          }
-        }
+        const alternatives = buildRecognitionAlternatives(
+          finalSegments,
+          finalSegmentAlternatives
+        );
         finish(() => resolve({ transcript: joined, alternatives }));
       };
 
@@ -132,15 +170,16 @@ class SpeechRecognitionEngine {
           if (result.isFinal) {
             const top = result[0]?.transcript?.trim();
             if (top) {
-              finalSegments.push(top);
-              // Capture this segment's alternatives for the matcher.
-              lastSegmentAlternatives = [];
-              for (let a = 0; a < result.length; a++) {
-                const alt = result[a];
-                if (alt?.transcript) {
-                  lastSegmentAlternatives.push(alt.transcript.trim().toLowerCase());
-                }
-              }
+              const normalizedAlternatives = Array.from(
+                new Set(
+                  Array.from({ length: result.length }, (_, a) => result[a]?.transcript)
+                    .filter((value): value is string => Boolean(value && value.trim()))
+                    .map((value) => value.trim().toLowerCase())
+                )
+              );
+
+              finalSegments.push(top.trim());
+              finalSegmentAlternatives.push(normalizedAlternatives);
             }
             // Restart the idle timer — caller is mid-thought, not necessarily done.
             clearIdle();

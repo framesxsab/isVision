@@ -4,7 +4,7 @@
  */
 
 import { useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useVisionAssistant } from "./useVisionAssistant";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -14,6 +14,11 @@ import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { pushTactileHandoff } from "@/modules/tactile-output/inputAdapters";
+import {
+  MODULE_VOICE_ACTION_EVENT,
+  takePendingVoiceAction,
+  type VoiceAction,
+} from "@/modules/voice-nav/voiceActions";
 
 // Recognize camera-permission errors by their user-facing text.
 // useVisionAssistant emits explainCameraError() strings; keep this in sync.
@@ -25,6 +30,7 @@ function isPermissionDenied(message: string | null): boolean {
 
 export default function VisionAssistantPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const announce = useAnnounce();
@@ -52,6 +58,28 @@ export default function VisionAssistantPage() {
 
     return () => stopCamera();
   }, [startCamera, stopCamera, announce]);
+
+  useEffect(() => {
+    function runVisionVoiceAction(action: VoiceAction | undefined) {
+      if (action === "capture_image") {
+        void captureAndDescribe();
+      }
+    }
+
+    function handleVoiceAction(event: Event) {
+      runVisionVoiceAction((event as CustomEvent<{ action: VoiceAction }>).detail?.action);
+    }
+
+    window.addEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+    const pending = takePendingVoiceAction(location.pathname);
+    const timer = pending
+      ? window.setTimeout(() => runVisionVoiceAction(pending), 1000)
+      : null;
+    return () => {
+      window.removeEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [captureAndDescribe, location.pathname]);
 
   // Stop the camera the moment the tab/page is hidden — battery + privacy.
   // Restart it when the user returns, so the experience is seamless.

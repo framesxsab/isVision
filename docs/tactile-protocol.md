@@ -23,11 +23,15 @@ END
 
 Commands:
 
-- `CFG hold_ms=<number> blank=<0|1>` sets firmware playback behavior.
-- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is a six-dot braille bitmask.
+- `CFG hold_ms=<number> blank=<0|1>` sets firmware playback behavior. The Arduino prototype accepts `hold_ms` from `100` through `5000`.
+- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is a six-dot braille bitmask in the range `0..63`.
 - `B` blanks all pins.
 - `END` marks the end of a batch and blanks pins.
 - Lines beginning with `#` are comments.
+
+Firmware and bridge implementations should reject malformed numeric fields instead of coercing them. A bad frame must not actuate a different dot pattern than the host intended.
+
+The first single-cell Arduino firmware has a small serial command queue. Hosts should pace compact playback by waiting at least `hold_ms` after each `F` line. If the firmware reports queue overflow, treat the batch as failed and resend from the beginning after `END`.
 
 ## Dot Mask
 
@@ -58,4 +62,3 @@ JSON Lines preserve the full frame object:
 ```
 
 Use JSON Lines for tests and tooling. Use compact v1 for first hardware.
-

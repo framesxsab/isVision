@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
 import { SkipLinks } from "@/core/a11y/SkipLinks";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -34,6 +35,18 @@ function PageLoader() {
   );
 }
 
+function RequireOnboarding({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const onboardingComplete = useSettingsStore((s) => s.onboardingComplete);
+
+  if (!onboardingComplete) {
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/onboarding?next=${encodeURIComponent(next)}`} replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   const highContrast = useSettingsStore((s) => s.highContrast);
 
@@ -55,15 +68,15 @@ export default function App() {
         <ErrorBoundary moduleName="app">
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/" element={<RequireOnboarding><HomePage /></RequireOnboarding>} />
+              <Route path="/settings" element={<RequireOnboarding><SettingsPage /></RequireOnboarding>} />
               <Route path="/onboarding" element={<OnboardingPage />} />
-              <Route path="/troubleshoot" element={<TroubleshootPage />} />
+              <Route path="/troubleshoot" element={<RequireOnboarding><TroubleshootPage /></RequireOnboarding>} />
               <Route
                 path="/touch-explorer"
                 element={
                   <ErrorBoundary moduleName="Touch Explorer">
-                    <TouchExplorerPage />
+                    <RequireOnboarding><TouchExplorerPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -71,7 +84,7 @@ export default function App() {
                 path="/ai-vision"
                 element={
                   <ErrorBoundary moduleName="AI Vision">
-                    <VisionAssistantPage />
+                    <RequireOnboarding><VisionAssistantPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -79,7 +92,7 @@ export default function App() {
                 path="/reader"
                 element={
                   <ErrorBoundary moduleName="Accessible Reader">
-                    <ReaderPage />
+                    <RequireOnboarding><ReaderPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -87,7 +100,7 @@ export default function App() {
                 path="/voice-nav"
                 element={
                   <ErrorBoundary moduleName="Voice Navigation">
-                    <VoiceNavPage />
+                    <RequireOnboarding><VoiceNavPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -95,7 +108,7 @@ export default function App() {
                 path="/tactile-output"
                 element={
                   <ErrorBoundary moduleName="Tactile Output Lab">
-                    <TactileOutputPage />
+                    <RequireOnboarding><TactileOutputPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -103,7 +116,7 @@ export default function App() {
                 path="/tactile-drill"
                 element={
                   <ErrorBoundary moduleName="Tactile Drill">
-                    <TactileDrillPage />
+                    <RequireOnboarding><TactileDrillPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
@@ -111,11 +124,11 @@ export default function App() {
                 path="/hardware-emulator"
                 element={
                   <ErrorBoundary moduleName="Hardware Emulator">
-                    <HardwareEmulatorPage />
+                    <RequireOnboarding><HardwareEmulatorPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
-              <Route path="*" element={<NotFoundPage />} />
+              <Route path="*" element={<RequireOnboarding><NotFoundPage /></RequireOnboarding>} />
             </Routes>
           </Suspense>
         </ErrorBoundary>

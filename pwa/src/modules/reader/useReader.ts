@@ -179,14 +179,13 @@ export function useReader() {
     setState((s) => ({ ...s, currentChunk: index }));
     persistPosition(index);
 
-    speechEngine.setEventHandler((event) => {
-      if (event === "end" && readingRef.current) {
+    speechEngine.speak(chunk, {
+      onEnd: () => {
+        if (!readingRef.current) return;
         chunkIndexRef.current++;
         readCurrentChunk();
-      }
+      },
     });
-
-    speechEngine.speak(chunk);
   }, [persistPosition]);
 
   // Start/resume reading

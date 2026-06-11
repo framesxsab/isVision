@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  LIBLOUIS_TABLE_DEPENDENCIES,
   LIBLOUIS_RUNTIME_URLS,
   checkAppShell,
   checkLiblouisRuntime,
@@ -89,9 +90,17 @@ describe("checkLiblouisRuntime", () => {
 });
 
 describe("checkTable", () => {
-  it("reports cached when the entry table exists for that language", async () => {
-    installCacheStub(["/tables/fr-bfu-g2.ctb"]);
+  it("requires the entry table and every recursive include for that language", async () => {
+    const cache = installCacheStub(LIBLOUIS_TABLE_DEPENDENCIES["fr-g2"]);
     expect(await checkTable("fr-g2")).toBe("cached");
+
+    cache.remove("/tables/fr-bfu-comp68.cti");
+    expect(await checkTable("fr-g2")).toBe("missing");
+  });
+
+  it("does not report cached when only the entry table exists", async () => {
+    installCacheStub(["/tables/fr-bfu-g2.ctb"]);
+    expect(await checkTable("fr-g2")).toBe("missing");
     expect(await checkTable("de-g2")).toBe("missing");
   });
 
@@ -104,7 +113,11 @@ describe("checkTable", () => {
 describe("checkReadiness", () => {
   beforeEach(() => {
     installCacheStub(
-      [...LIBLOUIS_RUNTIME_URLS, "/tables/en-ueb-g2.ctb", "/tables/fr-bfu-g2.ctb"],
+      [
+        ...LIBLOUIS_RUNTIME_URLS,
+        ...LIBLOUIS_TABLE_DEPENDENCIES["en-g2"],
+        ...LIBLOUIS_TABLE_DEPENDENCIES["fr-g2"],
+      ],
       { "workbox-precache-v2": ["/index.html"] }
     );
   });

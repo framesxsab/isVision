@@ -37,6 +37,7 @@ beforeEach(() => {
   useTactileStore.setState({
     lastImportedText: "",
     lastImportSource: "",
+    persistImportedText: false,
     translatorMode: "g1",
     language: "en-g2",
     groupSize: 1,
@@ -60,6 +61,7 @@ describe("tactileStore", () => {
     expect(s.outputFormat).toBe("compact");
     expect(s.holdMs).toBe(900);
     expect(s.blankBetweenFrames).toBe(true);
+    expect(s.persistImportedText).toBe(false);
     expect(s.drillScore).toEqual(INITIAL_SCORE);
     expect(s.drillMode).toBe("letter");
     expect(s.drillSpeechMode).toBe("silent");
@@ -70,6 +72,19 @@ describe("tactileStore", () => {
     const s = useTactileStore.getState();
     expect(s.lastImportedText).toBe("hello");
     expect(s.lastImportSource).toBe("Reader");
+  });
+
+  it("turning off imported-text persistence clears remembered imported text", () => {
+    const store = useTactileStore.getState();
+    store.setPersistImportedText(true);
+    store.rememberImportedText("private note", "clipboard");
+
+    useTactileStore.getState().setPersistImportedText(false);
+
+    const s = useTactileStore.getState();
+    expect(s.persistImportedText).toBe(false);
+    expect(s.lastImportedText).toBe("");
+    expect(s.lastImportSource).toBe("");
   });
 
   it("clamps holdMs to the [100, 5000] range", () => {

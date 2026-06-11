@@ -1,18 +1,17 @@
-// First-launch audio gate — runs before the React bundle parses so
-// a blind user is not stranded in silence while ~100kb of JS loads.
-// Browsers (especially iOS Safari) only unlock speechSynthesis after
-// a user gesture, so we render a "Tap anywhere" affordance and speak
-// the welcome on first interaction. Gated by sessionStorage so it
-// appears once per browser session.
+// First-launch audio gate. This runs before the React bundle parses so a
+// blind user is not stranded in silence while the app loads.
+// Browsers, especially iOS Safari, only unlock speechSynthesis after a user
+// gesture. The gate appears once per browser session.
 (function () {
   try {
-    // Skip under browser automation (Playwright, etc.) — the modal blocks
-    // pointer events and would break every test, and automated runs don't
-    // need the speechSynthesis unlock gesture.
+    // Skip under browser automation. The modal blocks pointer events and would
+    // break browser tests, and automated runs do not need the audio unlock.
     if (navigator.webdriver) return;
     if (sessionStorage.getItem("isvisible.welcomed") === "1") return;
+
     var host = document.getElementById("prelaunch-audio");
     if (!host) return;
+
     host.hidden = false;
     host.setAttribute("role", "dialog");
     host.setAttribute("aria-modal", "true");
@@ -23,13 +22,26 @@
       '<div style="max-width:28rem;text-align:center;">' +
       '<div style="font-size:1.75rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:0.75rem;">isVisible</div>' +
       '<p style="font-size:1.1rem;line-height:1.5;color:#d6d3d1;margin:0 0 1.25rem;">Tap anywhere to begin. You will hear a welcome message.</p>' +
-      '<button type="button" id="prelaunch-tap" autofocus aria-label="Begin and hear welcome" style="min-height:48px;padding:0.75rem 1.5rem;border-radius:0.75rem;border:1px solid #4f46e5;background:#4338ca;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;">Tap to begin</button>' +
+      '<button type="button" id="prelaunch-tap" aria-label="Begin and hear welcome" style="min-height:48px;padding:0.75rem 1.5rem;border-radius:0.75rem;border:1px solid #4f46e5;background:#4338ca;color:#fff;font-size:1rem;font-weight:600;cursor:pointer;">Tap to begin</button>' +
       "</div>";
+
+    var button = document.getElementById("prelaunch-tap");
+    var previousFocus = document.activeElement;
+    setTimeout(function () {
+      try {
+        if (button) button.focus();
+      } catch (_) {}
+    }, 0);
+
     var dismissed = false;
     function dismiss() {
       if (dismissed) return;
       dismissed = true;
-      try { sessionStorage.setItem("isvisible.welcomed", "1"); } catch (_) {}
+
+      try {
+        sessionStorage.setItem("isvisible.welcomed", "1");
+      } catch (_) {}
+
       try {
         if ("speechSynthesis" in window) {
           var u = new SpeechSynthesisUtterance(
@@ -41,15 +53,36 @@
           window.speechSynthesis.speak(u);
         }
       } catch (_) {}
+
       host.style.opacity = "0";
       host.style.transition = "opacity 200ms";
-      setTimeout(function () { host.remove(); }, 220);
+      setTimeout(function () {
+        host.remove();
+        try {
+          if (previousFocus && typeof previousFocus.focus === "function") {
+            previousFocus.focus();
+          } else {
+            var main = document.getElementById("main-content");
+            if (main) {
+              main.setAttribute("tabindex", "-1");
+              main.focus();
+            }
+          }
+        } catch (_) {}
+      }, 220);
     }
+
     host.addEventListener("click", dismiss, { once: true });
     host.addEventListener("touchstart", dismiss, { once: true, passive: true });
-    // Keyboard path — any key on the focused button dismisses too.
     host.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " " || e.key === "Tab") {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        try {
+          if (button) button.focus();
+        } catch (_) {}
+        return;
+      }
+      if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
         e.preventDefault();
         dismiss();
       }

@@ -21,10 +21,26 @@ import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { pushTactileHandoff } from "@/modules/tactile-output/inputAdapters";
+import {
+  changeReaderSpeed,
+  MODULE_VOICE_ACTION_EVENT,
+  takePendingVoiceAction,
+  type VoiceAction,
+} from "@/modules/voice-nav/voiceActions";
 
 interface PreloadState {
   preload?: { title: string; text: string; source: string };
   resume?: { url: string; chunkIndex: number };
+}
+
+function isInteractiveShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a, summary, [role="button"], [role="link"], [role="radio"], [role="checkbox"], [role="tab"], [role="menuitem"]'
+    )
+  );
 }
 
 export default function ReaderPage() {
@@ -57,6 +73,8 @@ export default function ReaderPage() {
     error,
     loadUrl,
     loadContent,
+    play,
+    pause,
     togglePlayPause,
     nextChunk,
     prevChunk,
@@ -119,7 +137,8 @@ export default function ReaderPage() {
 
     // Keyboard shortcuts
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (isInteractiveShortcutTarget(e.target)) return;
 
       switch (e.code) {
         case "Space":
@@ -156,6 +175,46 @@ export default function ReaderPage() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [announce, togglePlayPause, nextChunk, prevChunk, setSpeechRate]);
+
+  useEffect(() => {
+    function runReaderVoiceAction(action: VoiceAction | undefined) {
+      switch (action) {
+        case "reader_play":
+          play();
+          break;
+        case "reader_pause":
+          pause();
+          break;
+        case "reader_next":
+          nextChunk();
+          break;
+        case "reader_previous":
+          prevChunk();
+          break;
+        case "speed_up": {
+          const next = changeReaderSpeed(0.2);
+          announce(`Speed ${next.toFixed(1)}x`);
+          speechEngine.interrupt(`Speed ${next.toFixed(1)}x`);
+          break;
+        }
+        case "slow_down": {
+          const next = changeReaderSpeed(-0.2);
+          announce(`Speed ${next.toFixed(1)}x`);
+          speechEngine.interrupt(`Speed ${next.toFixed(1)}x`);
+          break;
+        }
+      }
+    }
+
+    function handleVoiceAction(event: Event) {
+      runReaderVoiceAction((event as CustomEvent<{ action: VoiceAction }>).detail?.action);
+    }
+
+    window.addEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+    const pending = takePendingVoiceAction(location.pathname);
+    if (pending) runReaderVoiceAction(pending);
+    return () => window.removeEventListener(MODULE_VOICE_ACTION_EVENT, handleVoiceAction);
+  }, [announce, location.pathname, nextChunk, pause, play, prevChunk]);
 
   // Track in-article text selections so the Tactile handoff can offer a
   // "selected text" mode. We only count selections that actually intersect

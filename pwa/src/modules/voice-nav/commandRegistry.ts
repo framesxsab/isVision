@@ -12,12 +12,31 @@
  * exact phrases ("I want to open the reader" → open_reader, etc.).
  */
 
+import { parseIntent } from "../../core/ai/NvidiaClient";
+
 export interface Command {
   name: string;
   patterns: string[];
   description: string;
   module: string;
   action: string;
+}
+
+export interface VoiceCommandResolution {
+  command: Command;
+  confidence: number;
+  matchedAlternative: string;
+  source: "local" | "ai";
+}
+
+export interface ResolveVoiceCommandOptions {
+  minLocalConfidence?: number;
+  minAiConfidence?: number;
+  aiTimeoutMs?: number;
+  intentResolver?: (
+    transcript: string,
+    availableCommands: string[]
+  ) => Promise<{ command: string | null; confidence: number }>;
 }
 
 export const commands: Command[] = [
@@ -110,7 +129,7 @@ export const commands: Command[] = [
     name: "capture",
     patterns: [
       "capture", "take photo", "take picture", "snap",
-      "describe what you see", "what is this", "what do you see",
+      "describe what you see", "what do you see",
       "look at this", "describe surroundings", "analyze image", "describe",
     ],
     description: "Capture and describe image",
@@ -203,6 +222,16 @@ export const commands: Command[] = [
     action: "navigate_tactile_output",
   },
   {
+    name: "open_voice_nav",
+    patterns: [
+      "voice nav", "voice navigation", "open voice nav",
+      "open voice navigation", "go to voice nav", "go to voice navigation",
+    ],
+    description: "Open Voice Navigation",
+    module: "global",
+    action: "navigate_voice_nav",
+  },
+  {
     name: "open_tactile_drill",
     patterns: [
       "tactile drill", "drill", "practice braille", "braille drill", "open drill",
@@ -211,6 +240,45 @@ export const commands: Command[] = [
     description: "Open Tactile Drill",
     module: "tactile-output",
     action: "navigate_tactile_drill",
+  },
+  {
+    name: "drill_next",
+    patterns: [
+      "next drill", "next prompt", "next braille prompt", "drill next",
+      "skip drill prompt",
+    ],
+    description: "Move to the next drill prompt",
+    module: "tactile-output",
+    action: "drill_next",
+  },
+  {
+    name: "drill_previous",
+    patterns: [
+      "previous drill", "previous prompt", "last drill prompt", "drill back",
+      "back in drill",
+    ],
+    description: "Go to the previous drill prompt",
+    module: "tactile-output",
+    action: "drill_previous",
+  },
+  {
+    name: "drill_repeat",
+    patterns: [
+      "repeat prompt", "repeat drill", "repeat current prompt",
+      "say drill prompt again",
+    ],
+    description: "Repeat the current drill prompt",
+    module: "tactile-output",
+    action: "drill_repeat",
+  },
+  {
+    name: "drill_reset",
+    patterns: [
+      "reset drill", "reset score", "clear drill score", "start drill over",
+    ],
+    description: "Reset the drill score",
+    module: "tactile-output",
+    action: "drill_reset",
   },
 ];
 
@@ -291,6 +359,62 @@ export function matchCommandWithAlternatives(
  * Find the best matching command for a single transcript.
  * Pipeline: normalize → exact → substring → word-coverage → Levenshtein.
  */
+export async function resolveVoiceCommand(
+  alternatives: string[],
+  options: ResolveVoiceCommandOptions = {}
+): Promise<VoiceCommandResolution | null> {
+  const localMatch = matchCommandWithAlternatives(alternatives);
+  const minLocalConfidence = options.minLocalConfidence ?? 0.75;
+  const minAiConfidence = options.minAiConfidence ?? 0.70;
+
+  if (localMatch && localMatch.confidence >= minLocalConfidence) {
+    return { ...localMatch, source: "local" };
+  }
+
+  const transcript = localMatch?.matchedAlternative ?? alternatives[0] ?? "";
+  if (!transcript.trim()) {
+    return localMatch ? { ...localMatch, source: "local" } : null;
+  }
+
+  const commandLookup = new Map<string, Command>();
+  for (const cmd of commands) {
+    commandLookup.set(cmd.name, cmd);
+    for (const pattern of cmd.patterns) {
+      const normalized = normalizeTranscript(pattern);
+      if (normalized) commandLookup.set(normalized, cmd);
+    }
+  }
+  const availableCommands = Array.from(commandLookup.keys());
+
+  const intentResolver =
+    options.intentResolver ??
+    ((input: string, knownCommands: string[]) => parseIntent(input, knownCommands));
+
+  let aiMatch: { command: string | null; confidence: number };
+  try {
+    aiMatch = await withTimeout(
+      intentResolver(transcript, availableCommands),
+      options.aiTimeoutMs ?? 2000
+    );
+  } catch {
+    return localMatch ? { ...localMatch, source: "local" } : null;
+  }
+  const aiCommand = aiMatch.command
+    ? commandLookup.get(normalizeTranscript(aiMatch.command)) ?? commandLookup.get(aiMatch.command)
+    : null;
+
+  if (aiCommand && aiMatch.confidence >= minAiConfidence) {
+    return {
+      command: aiCommand,
+      confidence: aiMatch.confidence,
+      matchedAlternative: transcript,
+      source: "ai",
+    };
+  }
+
+  return localMatch ? { ...localMatch, source: "local" } : null;
+}
+
 export function matchCommand(
   transcript: string
 ): { command: Command; confidence: number } | null {
@@ -349,6 +473,22 @@ export function matchCommand(
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Intent resolver timed out")), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      }
+    );
+  });
 }
 
 function levenshtein(a: string, b: string): number {

@@ -5,6 +5,7 @@ import { Button } from "@/components/Button";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { platform } from "@/core/utils/platform";
+import { queryMediaPermission } from "@/core/utils/capabilities";
 
 const steps = [
   {
@@ -73,6 +74,7 @@ export default function OnboardingPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const isRestart = params.get("restart") === "1";
+  const nextPath = readNextPath(params.get("next"));
   const [step, setStep] = useState(0);
   // Skip the audio-gate splash on restart — returning users have already
   // tapped past it once and shouldn't be forced through it again.
@@ -95,6 +97,32 @@ export default function OnboardingPage() {
   const setVoiceURI = useSettingsStore((s) => s.setVoiceURI);
   const voiceURI = useSettingsStore((s) => s.voiceURI);
   const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refreshPermissionStatus() {
+      const [camera, microphone] = await Promise.all([
+        queryMediaPermission("camera"),
+        queryMediaPermission("microphone"),
+      ]);
+      if (cancelled) return;
+
+      const patch = {
+        ...(camera ? { camera } : {}),
+        ...(microphone ? { microphone } : {}),
+      };
+      if (camera) setCameraGranted(camera === "granted" ? true : camera === "denied" ? false : null);
+      if (microphone) {
+        setMicGranted(microphone === "granted" ? true : microphone === "denied" ? false : null);
+      }
+      setSetupStatus(patch);
+    }
+
+    void refreshPermissionStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [setSetupStatus]);
 
   const announce = useCallback((message: string) => {
     setLiveMessage(message);
@@ -129,8 +157,8 @@ export default function OnboardingPage() {
   const handleSkip = useCallback(() => {
     speechEngine.stop();
     completeOnboarding();
-    navigate("/");
-  }, [completeOnboarding, navigate]);
+    navigate(nextPath, { replace: true });
+  }, [completeOnboarding, navigate, nextPath]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -208,7 +236,7 @@ export default function OnboardingPage() {
       // picked a voice or accepted system default, both are intentional choices.
       setSetupStatus({ voiceConfirmed: true });
       completeOnboarding();
-      navigate("/");
+      navigate(nextPath, { replace: true });
     } else {
       setStep((s) => s + 1);
     }
@@ -221,8 +249,8 @@ export default function OnboardingPage() {
     speechEngine.stop();
     announce("Setup paused. You can finish it any time from Settings.");
     completeOnboarding();
-    navigate("/");
-  }, [announce, completeOnboarding, navigate]);
+    navigate(nextPath, { replace: true });
+  }, [announce, completeOnboarding, navigate, nextPath]);
 
   if (!audioStarted) {
     return (
@@ -416,4 +444,9 @@ export default function OnboardingPage() {
       </div>
     </div>
   );
+}
+
+function readNextPath(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
 }

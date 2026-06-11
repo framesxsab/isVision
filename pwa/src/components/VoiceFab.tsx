@@ -15,29 +15,18 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate, type NavigateFunction } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
-import {
-  matchCommandWithAlternatives,
-} from "@/modules/voice-nav/commandRegistry";
+import { resolveVoiceCommand } from "@/modules/voice-nav/commandRegistry";
 import { answerQuestion } from "@/modules/voice-nav/assistantAnswers";
+import { runVoiceAction } from "@/modules/voice-nav/voiceActions";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import { IconEar, IconMicrophone } from "./Icons";
 
 const HIDDEN_ROUTES = new Set(["/voice-nav", "/onboarding"]);
-
-const NAV_ACTIONS: Record<string, string> = {
-  navigate_home: "/",
-  navigate_settings: "/settings",
-  navigate_touch_explorer: "/touch-explorer",
-  navigate_ai_vision: "/ai-vision",
-  navigate_reader: "/reader",
-  navigate_tactile_output: "/tactile-output",
-  navigate_tactile_drill: "/tactile-drill",
-};
 
 export function VoiceFab() {
   const navigate = useNavigate();
@@ -54,7 +43,8 @@ export function VoiceFab() {
       // Browsers without Web Speech API: send the user to the page that
       // explains the limitation rather than failing silently.
       speechEngine.interrupt(
-        "Voice recognition isn't available in this browser. Opening Voice Navigation for instructions."
+        "Voice recognition isn't available in this browser. Opening Voice Navigation for instructions.",
+        { remember: false }
       );
       navigate("/voice-nav");
       return;
@@ -70,14 +60,19 @@ export function VoiceFab() {
       setIsListening(false);
 
       const confirmAloud = useSettingsStore.getState().voiceConfirmAloud;
-      const match = matchCommandWithAlternatives(result.alternatives);
+      const match = await resolveVoiceCommand(result.alternatives);
 
-      if (match && match.confidence >= 0.65) {
+      if (match && match.confidence >= 0.55) {
         earcons.success();
         if (confirmAloud) {
-          speechEngine.interrupt(match.command.description);
+          speechEngine.interrupt(match.command.description, { remember: false });
         }
-        runCommandAction(match.command.action, navigate);
+        runVoiceAction({
+          action: match.command.action,
+          navigate,
+          pathname: location.pathname,
+          silent: confirmAloud,
+        });
         return;
       }
 
@@ -99,7 +94,7 @@ export function VoiceFab() {
       const message =
         err instanceof Error ? err.message : "Could not recognize speech.";
       // Mic-denied messages are spoken so a blind user knows what to fix.
-      speechEngine.interrupt(message);
+      speechEngine.interrupt(message, { remember: false });
     }
   }, [announce, navigate, location.pathname, supported]);
 
@@ -166,33 +161,5 @@ export function VoiceFab() {
         )}
       </button>
     </div>
-  );
-}
-
-function runCommandAction(action: string, navigate: NavigateFunction) {
-  const path = NAV_ACTIONS[action];
-  if (path) {
-    navigate(path);
-    return;
-  }
-  if (action === "navigate_back") {
-    navigate(-1);
-    return;
-  }
-  if (action === "stop_speech") {
-    speechEngine.stop();
-    return;
-  }
-  if (action === "help") {
-    speechEngine.interrupt(
-      "You can ask me to open any module — say open reader, open camera, open touch explorer, open voice nav, " +
-        "open tactile lab, or open drill. Ask what is this for a description, or take a tour for an overview."
-    );
-    return;
-  }
-  // Module-specific actions (reader play/pause, capture, etc.) only work
-  // on their own pages. Be honest about that rather than failing silently.
-  speechEngine.interrupt(
-    "That command works on its module page. Try opening the module first."
   );
 }

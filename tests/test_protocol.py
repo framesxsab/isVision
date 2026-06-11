@@ -105,9 +105,9 @@ class CompactProtocolParserTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             parse_compact_stream("F -1 0 1\nEND")
 
-    def test_rejects_mask_out_of_byte_range(self):
+    def test_rejects_mask_outside_six_dot_range(self):
         with self.assertRaises(ProtocolError):
-            parse_compact_stream("F 0 0 999\nEND")
+            parse_compact_stream("F 0 0 64\nEND")
 
     def test_rejects_non_integer_mask(self):
         with self.assertRaises(ProtocolError):

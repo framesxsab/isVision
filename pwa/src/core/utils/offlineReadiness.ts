@@ -22,15 +22,52 @@ export interface ReadinessReport {
   cacheApiAvailable: boolean;
 }
 
-// One entry table per language. If the entry table is cached, Liblouis can
-// load it from the in-page worker even offline. Sub-tables resolve lazily,
-// so the entry table being present is the right "ready to translate" signal
-// the user cares about.
-const ENTRY_TABLE_FOR_LANG: Record<LiblouisTableId, string> = {
-  "en-g2": "/tables/en-ueb-g2.ctb",
-  "en-g1": "/tables/en-ueb-g1.ctb",
-  "fr-g2": "/tables/fr-bfu-g2.ctb",
-  "de-g2": "/tables/de-de-g2.ctb",
+const tableUrl = (file: string) => `/tables/${file}`;
+
+// Full recursive dependency closure for each exposed Liblouis table chain.
+// EasyApiAsync loads includes lazily from the worker; an entry table alone is
+// not enough for reliable offline translation after a reload.
+export const LIBLOUIS_TABLE_DEPENDENCIES: Record<LiblouisTableId, readonly string[]> = {
+  "en-g2": [
+    "unicode.dis",
+    "en-ueb-g2.ctb",
+    "en-ueb-g1.ctb",
+    "en-ueb-chardefs.uti",
+    "latinLetterDef8Dots.uti",
+    "en-ueb-math.ctb",
+    "braille-patterns.cti",
+  ].map(tableUrl),
+  "en-g1": [
+    "unicode.dis",
+    "en-ueb-g1.ctb",
+    "en-ueb-chardefs.uti",
+    "latinLetterDef8Dots.uti",
+    "en-ueb-math.ctb",
+    "braille-patterns.cti",
+  ].map(tableUrl),
+  "fr-g2": [
+    "unicode.dis",
+    "fr-bfu-g2.ctb",
+    "fr-bfu-comp6.utb",
+    "digits6DotsPlusDot6.uti",
+    "latinLetterDef6Dots.uti",
+    "braille-patterns.cti",
+    "fr-bfu-comp68.cti",
+  ].map(tableUrl),
+  "de-g2": [
+    "unicode.dis",
+    "de-de-g2.ctb",
+    "de-de-g0.utb",
+    "de-eurobrl6.dis",
+    "de-chardefs6.cti",
+    "digits6DotsPlusDot6.uti",
+    "latinLetterDef6Dots.uti",
+    "de-de-accents.cti",
+    "de-g0-core.uti",
+    "countries.cti",
+    "litdigits6Dots.uti",
+    "de-g2-core.cti",
+  ].map(tableUrl),
 };
 
 export const LIBLOUIS_RUNTIME_URLS = [
@@ -95,7 +132,7 @@ export async function checkLiblouisRuntime(): Promise<Status> {
 
 export async function checkTable(lang: LiblouisTableId): Promise<Status> {
   if (!getCaches()) return "unknown";
-  return (await isCached(ENTRY_TABLE_FOR_LANG[lang])) ? "cached" : "missing";
+  return probeAll(LIBLOUIS_TABLE_DEPENDENCIES[lang]);
 }
 
 export async function checkReadiness(

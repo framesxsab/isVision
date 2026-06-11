@@ -39,7 +39,7 @@ test.describe("Tactile Lab persistence", () => {
     );
   });
 
-  test("imported text from clipboard is restored on next visit", async ({
+  test("imported clipboard text is session-only by default", async ({
     page,
     context,
     browserName,
@@ -63,11 +63,51 @@ test.describe("Tactile Lab persistence", () => {
     await page.getByRole("button", { name: "Paste text from clipboard" }).click();
     await expect(page.locator("#tactile-source")).toHaveValue("persisted clipboard text");
 
-    // Navigate away and back — the imported text should still be there.
-    await page.goto("/");
+    // A reload simulates closing/reopening the app, so imported text should
+    // fall back to the example unless the privacy opt-in is enabled.
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("#tactile-source")).toHaveValue("isVisible tactile output lab");
+
+    const persisted = await page.evaluate(() => {
+      const raw = localStorage.getItem("isvisible-tactile");
+      return raw ? JSON.parse(raw)?.state?.lastImportedText : null;
+    });
+    expect(persisted).toBe("");
+  });
+
+  test("imported clipboard text persists only after privacy opt-in", async ({
+    page,
+    context,
+    browserName,
+  }) => {
+    if (browserName !== "webkit") {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    }
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          readText: async () => "opted in clipboard text",
+          writeText: async () => undefined,
+        },
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+    const rememberImports = page.getByLabel("Remember Tactile Lab imports across restarts");
+    await page.getByText("Remember Tactile Lab imports across restarts", { exact: true }).click();
+    await expect(rememberImports).toBeChecked();
+
     await page.goto("/tactile-output");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator("#tactile-source")).toHaveValue("persisted clipboard text");
+    await page.getByRole("button", { name: "Paste text from clipboard" }).click();
+    await expect(page.locator("#tactile-source")).toHaveValue("opted in clipboard text");
+
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("#tactile-source")).toHaveValue("opted in clipboard text");
   });
 
   test("frame size survives a reload", async ({ page }) => {

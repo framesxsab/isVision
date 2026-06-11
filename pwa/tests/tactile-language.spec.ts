@@ -54,4 +54,21 @@ test.describe("Tactile Lab language selector", () => {
       "false"
     );
   });
+  test("language radio group supports arrow-key selection with one tab stop", async ({ page }) => {
+    await page.getByRole("button", { name: "Grade 2 (Liblouis)" }).click();
+
+    const english = page.getByRole("radio", { name: "English UEB" });
+    const french = page.getByRole("radio", { name: /Fran/ });
+
+    await expect(english).toHaveAttribute("tabindex", "0");
+    await expect(french).toHaveAttribute("tabindex", "-1");
+
+    await english.focus();
+    await page.keyboard.press("ArrowRight");
+
+    await expect(french).toHaveAttribute("aria-checked", "true");
+    await expect(french).toHaveAttribute("tabindex", "0");
+    await expect(english).toHaveAttribute("tabindex", "-1");
+    await expect(french).toBeFocused();
+  });
 });

@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  detectCacheStorage,
+  detectCamera,
   detectCapability,
   detectClipboardRead,
   detectClipboardWrite,
+  detectMicrophone,
+  detectServiceWorker,
   detectSpeechRecognition,
   detectSpeechSynthesis,
+  detectVibration,
   detectWebHid,
   detectWebSerial,
+  queryMediaPermission,
 } from "./capabilities";
 
 // Stash and restore each property the detectors probe. Doing this with
@@ -37,6 +43,30 @@ function withGlobalKey<T>(
   }
 }
 
+async function withGlobalKeyAsync<T>(
+  target: object,
+  key: string,
+  value: unknown,
+  fn: () => Promise<T>
+): Promise<T> {
+  const had = Object.prototype.hasOwnProperty.call(target, key);
+  const previous = (target as Record<string, unknown>)[key];
+  Object.defineProperty(target, key, { value, configurable: true, writable: true });
+  try {
+    return await fn();
+  } finally {
+    if (had) {
+      Object.defineProperty(target, key, {
+        value: previous,
+        configurable: true,
+        writable: true,
+      });
+    } else {
+      delete (target as Record<string, unknown>)[key];
+    }
+  }
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -44,6 +74,11 @@ afterEach(() => {
 function withNavigator<T>(fn: (nav: Navigator) => T): T {
   const nav = (typeof navigator !== "undefined" ? navigator : {}) as Navigator;
   return withGlobalKey(globalThis, "navigator", nav, () => fn(nav));
+}
+
+function withNavigatorAsync<T>(fn: (nav: Navigator) => Promise<T>): Promise<T> {
+  const nav = (typeof navigator !== "undefined" ? navigator : {}) as Navigator;
+  return withGlobalKeyAsync(globalThis, "navigator", nav, () => fn(nav));
 }
 
 describe("detectWebSerial", () => {
@@ -66,6 +101,26 @@ describe("detectWebSerial", () => {
       expect(report.suggestion).toMatch(/Chromium/);
       // The suggestion should always include a non-empty next step.
       expect(report.suggestion.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+describe("detectCamera and detectMicrophone", () => {
+  it("return available when getUserMedia exists", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "mediaDevices", { getUserMedia: async () => ({}) }, () => {
+        expect(detectCamera().available).toBe(true);
+        expect(detectMicrophone().available).toBe(true);
+      });
+    });
+  });
+
+  it("return HTTPS guidance when mediaDevices is missing", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "mediaDevices", undefined, () => {
+        expect(detectCamera().suggestion).toMatch(/HTTPS|localhost/i);
+        expect(detectMicrophone().suggestion).toMatch(/HTTPS|localhost/i);
+      });
     });
   });
 });
@@ -177,10 +232,101 @@ describe("detectSpeechRecognition", () => {
   });
 });
 
+describe("detectVibration", () => {
+  it("returns available when navigator.vibrate exists", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "vibrate", vi.fn(), () => {
+        expect(detectVibration().available).toBe(true);
+      });
+    });
+  });
+
+  it("returns unavailable with speech/audio fallback guidance otherwise", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "vibrate", undefined, () => {
+        const report = detectVibration();
+        expect(report.available).toBe(false);
+        expect(report.suggestion).toMatch(/speech|audio/i);
+      });
+    });
+  });
+});
+
+describe("detectServiceWorker and detectCacheStorage", () => {
+  it("return available when the browser exposes offline APIs", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "serviceWorker", {}, () => {
+        withGlobalKey(globalThis, "caches", {}, () => {
+          expect(detectServiceWorker().available).toBe(true);
+          expect(detectCacheStorage().available).toBe(true);
+        });
+      });
+    });
+  });
+
+  it("return setup guidance when offline APIs are unavailable", () => {
+    withNavigator((nav) => {
+      withGlobalKey(nav, "serviceWorker", undefined, () => {
+        withGlobalKey(globalThis, "caches", undefined, () => {
+          expect(detectServiceWorker().suggestion).toMatch(/HTTPS|localhost/i);
+          expect(detectCacheStorage().suggestion).toMatch(/HTTPS|localhost|private/i);
+        });
+      });
+    });
+  });
+});
+
 describe("detectCapability dispatcher", () => {
   it("routes ids to the right detector", () => {
+    expect(detectCapability("camera")).toEqual(detectCamera());
+    expect(detectCapability("microphone")).toEqual(detectMicrophone());
     expect(detectCapability("web-serial")).toEqual(detectWebSerial());
     expect(detectCapability("web-hid")).toEqual(detectWebHid());
     expect(detectCapability("clipboard-read")).toEqual(detectClipboardRead());
+    expect(detectCapability("vibration")).toEqual(detectVibration());
+    expect(detectCapability("service-worker")).toEqual(detectServiceWorker());
+    expect(detectCapability("cache-storage")).toEqual(detectCacheStorage());
+  });
+});
+
+describe("queryMediaPermission", () => {
+  it("returns null when the Permissions API is unavailable", async () => {
+    await withNavigatorAsync(async (nav) => {
+      await withGlobalKeyAsync(nav, "permissions", undefined, async () => {
+        await expect(queryMediaPermission("camera")).resolves.toBeNull();
+      });
+    });
+  });
+
+  it("maps granted, denied, and prompt states", async () => {
+    await withNavigatorAsync(async (nav) => {
+      const query = vi
+        .fn()
+        .mockResolvedValueOnce({ state: "granted" })
+        .mockResolvedValueOnce({ state: "denied" })
+        .mockResolvedValueOnce({ state: "prompt" });
+
+      await withGlobalKeyAsync(nav, "permissions", { query }, async () => {
+        await expect(queryMediaPermission("camera")).resolves.toBe("granted");
+        await expect(queryMediaPermission("microphone")).resolves.toBe("denied");
+        await expect(queryMediaPermission("camera")).resolves.toBe("unknown");
+      });
+
+      expect(query).toHaveBeenNthCalledWith(1, { name: "camera" });
+      expect(query).toHaveBeenNthCalledWith(2, { name: "microphone" });
+    });
+  });
+
+  it("returns null when the browser rejects a media permission query", async () => {
+    await withNavigatorAsync(async (nav) => {
+      await withGlobalKeyAsync(
+        nav,
+        "permissions",
+        { query: vi.fn().mockRejectedValue(new Error("unsupported")) },
+        async () => {
+          await expect(queryMediaPermission("camera")).resolves.toBeNull();
+        }
+      );
+    });
   });
 });

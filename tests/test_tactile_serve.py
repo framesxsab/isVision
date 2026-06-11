@@ -7,9 +7,11 @@ directly so argparse / file plumbing is also covered.
 
 import io
 import sys
+import types
 import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -138,6 +140,94 @@ class StdoutSinkTests(unittest.TestCase):
         self.assertIn("frame 0 @cell 0:", output)
         self.assertIn("0x01", output)
         self.assertIn("blank", output)
+
+
+class SerialSinkTests(unittest.TestCase):
+    def test_writes_compact_protocol_bytes_to_serial_port(self):
+        stream = parse_compact_stream(WIRE_FIXTURE)
+
+        class FakeSerialPort:
+            def __init__(self) -> None:
+                self.writes: list[bytes] = []
+                self.closed = False
+
+            def write(self, data: bytes) -> int:
+                self.writes.append(data)
+                return len(data)
+
+            def close(self) -> None:
+                self.closed = True
+
+        port = FakeSerialPort()
+        calls: list[tuple[str, int, int]] = []
+
+        def serial_factory(port_name: str, baud: int, timeout: int):
+            calls.append((port_name, baud, timeout))
+            return port
+
+        fake_serial = types.SimpleNamespace(Serial=serial_factory)
+
+        with patch.dict(sys.modules, {"serial": fake_serial}):
+            sink = tactile_serve.SerialSink(port="COM9", baud=57600)
+            tactile_serve.dispatch(stream, sink, sleep=lambda _s: None)
+
+        self.assertEqual(calls, [("COM9", 57600, 1)])
+        self.assertEqual(
+            port.writes,
+            [
+                b"# isVisible tactile compact protocol v1\n",
+                b"CFG hold_ms=120 blank=1\n",
+                b"F 0 0 1\n",
+                b"B\n",
+                b"F 1 1 3\n",
+                b"B\n",
+                b"END\n",
+            ],
+        )
+        self.assertTrue(port.closed)
+
+
+class BrlttySinkTests(unittest.TestCase):
+    def test_writes_frame_masks_into_display_width_and_blanks(self):
+        class FakeConnection:
+            displaySize = (5, 1)
+
+            def __init__(self) -> None:
+                self.entered = False
+                self.left = False
+                self.writes: list[bytes] = []
+
+            def enterTtyMode(self) -> None:
+                self.entered = True
+
+            def leaveTtyMode(self) -> None:
+                self.left = True
+
+            def writeDots(self, data: bytes) -> None:
+                self.writes.append(data)
+
+        connection = FakeConnection()
+        fake_brlapi = types.SimpleNamespace(Connection=lambda: connection)
+
+        with patch.dict(sys.modules, {"brlapi": fake_brlapi}):
+            sink = tactile_serve.BrlttySink()
+            sink.open()
+            sink.on_config(parse_compact_stream(WIRE_FIXTURE))
+            sink.on_frame(Frame(index=0, cell_start=1, masks=(1, 3, 9)))
+            sink.on_frame(Frame(index=1, cell_start=4, masks=(7, 15)))
+            sink.on_blank()
+            sink.close()
+
+        self.assertTrue(connection.entered)
+        self.assertTrue(connection.left)
+        self.assertEqual(
+            connection.writes,
+            [
+                bytes([0, 1, 3, 9, 0]),
+                bytes([0, 0, 0, 0, 7]),
+                bytes([0, 0, 0, 0, 0]),
+            ],
+        )
 
 
 class CliTests(unittest.TestCase):

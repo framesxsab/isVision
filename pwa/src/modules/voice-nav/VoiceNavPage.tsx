@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
-import { commands, matchCommandWithAlternatives } from "./commandRegistry";
+import { commands, resolveVoiceCommand } from "./commandRegistry";
 import { answerQuestion } from "./assistantAnswers";
+import { runVoiceAction } from "./voiceActions";
 import { Button } from "@/components/Button";
 import { IconEar, IconMicrophone } from "@/components/Icons";
 import { PageShell, SectionLabel } from "@/components/PageShell";
@@ -31,8 +32,6 @@ export default function VoiceNavPage() {
   const [lastTranscript, setLastTranscript] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const setSpeechRate = useSettingsStore((s) => s.setSpeechRate);
-  const speechRate = useSettingsStore((s) => s.speechRate);
   const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
   const voiceConfirmAloud = useSettingsStore((s) => s.voiceConfirmAloud);
 
@@ -46,44 +45,31 @@ export default function VoiceNavPage() {
   const executeAction = useCallback(
     (action: string, options?: { silent?: boolean }) => {
       const silent = options?.silent === true;
-      const say = (msg: string) => { if (!silent) speechEngine.interrupt(msg); };
+      const say = (msg: string) => {
+        if (!silent) speechEngine.interrupt(msg, { remember: false });
+      };
       switch (action) {
         case "help": {
           const helpText = commands
             .filter((c) => c.module === "global")
             .map((c) => `${c.patterns[0]}: ${c.description}`)
             .join(". ");
-          speechEngine.interrupt(`Available commands. ${helpText}`);
+          speechEngine.interrupt(`Available commands. ${helpText}`, { remember: false });
           break;
         }
-        case "navigate_home": navigate("/"); say("Going home."); break;
-        case "navigate_back": navigate(-1); say("Going back."); break;
-        case "navigate_settings": navigate("/settings"); say("Opening settings."); break;
-        case "navigate_touch_explorer": navigate("/touch-explorer"); say("Opening Touch Explorer."); break;
-        case "navigate_ai_vision": navigate("/ai-vision"); say("Opening AI Vision."); break;
-        case "navigate_reader": navigate("/reader"); say("Opening Accessible Reader."); break;
-        case "navigate_tactile_output": navigate("/tactile-output"); say("Opening Tactile Output Lab."); break;
-        case "navigate_tactile_drill": navigate("/tactile-drill"); say("Opening Tactile Drill."); break;
-        case "stop_speech": speechEngine.stop(); break;
-        case "speed_up": {
-          const newRate = Math.min(3, speechRate + 0.2);
-          setSpeechRate(newRate);
-          speechEngine.setRate(newRate);
-          speechEngine.interrupt(`Speed ${newRate.toFixed(1)}x`);
+        case "speed_up":
+        case "slow_down":
+          if (!runVoiceAction({ action, navigate, pathname: location.pathname, silent })) {
+            say(`Command ${action} is available on its module page.`);
+          }
           break;
-        }
-        case "slow_down": {
-          const newRate = Math.max(0.5, speechRate - 0.2);
-          setSpeechRate(newRate);
-          speechEngine.setRate(newRate);
-          speechEngine.interrupt(`Speed ${newRate.toFixed(1)}x`);
-          break;
-        }
         default:
-          speechEngine.interrupt(`Command ${action} is available on its module page.`);
+          if (!runVoiceAction({ action, navigate, pathname: location.pathname, silent })) {
+            say(`Command ${action} is available on its module page.`);
+          }
       }
     },
-    [navigate, setSpeechRate, speechRate]
+    [location.pathname, navigate]
   );
 
   const handleListen = useCallback(async () => {
@@ -103,7 +89,7 @@ export default function VoiceNavPage() {
     try {
       const result = await speechRecognition.listenWithAlternatives();
       setIsListening(false);
-      const match = matchCommandWithAlternatives(result.alternatives);
+      const match = await resolveVoiceCommand(result.alternatives);
       const displayTranscript = match?.matchedAlternative ?? result.transcript;
       setLastTranscript(displayTranscript);
 
@@ -119,7 +105,7 @@ export default function VoiceNavPage() {
         if (voiceConfirmAloud) {
           const echo = `I heard "${result.transcript}". ${match.command.description}.`;
           announce(echo);
-          speechEngine.interrupt(echo);
+          speechEngine.interrupt(echo, { remember: false });
           setTimeout(() => executeAction(match.command.action, { silent: true }), 1400);
         } else {
           announce(`Running ${match.command.description}.`);

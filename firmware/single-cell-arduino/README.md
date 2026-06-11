@@ -30,9 +30,12 @@ From the PWA:
 
 The firmware uses the first mask in each frame for a one-cell prototype. Multi-cell hardware can extend the same `F` line by reading additional masks.
 
+Malformed protocol lines are rejected instead of coerced. `hold_ms` must be an integer from `100` to `5000`, `blank` must be `0` or `1`, frame indices and `cellStart` must be non-negative integers, and every mask on an `F` line must be in the six-dot range `0..63`. Rejected frames leave the current pins unchanged; queue overflow and line overflow blank the pins and abort the current batch.
+
 ## Frame hold is non-blocking
 
 `handleFrame` does not call `delay()`. After setting the dot pins and printing `OK F <index>`, it records an end-of-hold timestamp and returns. The main loop keeps draining the serial port and queuing incoming lines while the frame is on. When the hold expires, pins are blanked (if `blank=1`) and the next queued line runs.
 
-This means the host can stream the entire compact batch in one write without overflowing the AVR's 64-byte serial RX buffer. A small line queue (12 slots) absorbs any backlog that builds up during the hold. If the queue ever fills, the firmware prints `ERR queue full, dropping lines`.
+The loop keeps draining the serial port during a hold, but this first prototype still has a small 12-line command queue. Hosts should pace playback: send `CFG`, then each `F` line, wait at least `hold_ms`, send the optional `B`, and continue. The PWA Web Serial sender does this pacing automatically.
 
+If a host sends too far ahead and the queue fills, the firmware prints `ERR queue full, batch aborted`, blanks the pins, clears the queue, and ignores incoming lines until `END` resynchronizes the stream. This is intentional: a truncated tactile sequence is worse than a clearly failed one.

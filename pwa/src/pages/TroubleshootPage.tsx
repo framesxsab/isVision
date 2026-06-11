@@ -5,7 +5,7 @@
 // here to fix it" copy on each module is the real fix for non-technical users.
 // This page is for cases where the inline copy isn't enough.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { IconArrowLeft } from "@/components/Icons";
@@ -13,6 +13,7 @@ import { useAnnounce } from "@/core/a11y/AriaLive";
 import { useSettingsStore } from "@/core/store/settingsStore";
 import {
   detectCapability,
+  queryMediaPermission,
   type CapabilityId,
   type CapabilityReport,
 } from "@/core/utils/capabilities";
@@ -29,6 +30,14 @@ interface Row {
 }
 
 const CAPABILITY_LABELS: Record<CapabilityId, { label: string; hint: string }> = {
+  camera: {
+    label: "Camera API",
+    hint: "Browser support needed before AI Vision can request camera access.",
+  },
+  microphone: {
+    label: "Microphone API",
+    hint: "Browser support needed before Voice Navigation can request microphone access.",
+  },
   "speech-synthesis": {
     label: "Speech synthesis",
     hint: "The voice that reads pages and confirms actions.",
@@ -53,16 +62,33 @@ const CAPABILITY_LABELS: Record<CapabilityId, { label: string; hint: string }> =
     label: "WebHID",
     hint: "Alternative path to braille hardware on Chromium.",
   },
+  vibration: {
+    label: "Vibration",
+    hint: "Adds haptic orientation cues on supported phones and tablets.",
+  },
+  "service-worker": {
+    label: "Service worker",
+    hint: "Keeps the installed app shell available offline.",
+  },
+  "cache-storage": {
+    label: "Cache Storage",
+    hint: "Stores braille translation assets and app files for offline use.",
+  },
 };
 
 // Order matters — the items a blind user is most likely to need are at the
 // top, with hardware capabilities at the bottom (hardware is contributor /
 // power-user territory, not the default journey).
 const CAPABILITY_ORDER: CapabilityId[] = [
+  "camera",
+  "microphone",
   "speech-synthesis",
   "speech-recognition",
+  "vibration",
   "clipboard-write",
   "clipboard-read",
+  "service-worker",
+  "cache-storage",
   "web-serial",
   "web-hid",
 ];
@@ -71,6 +97,7 @@ export default function TroubleshootPage() {
   const navigate = useNavigate();
   const announce = useAnnounce();
   const setupStatus = useSettingsStore((s) => s.setupStatus);
+  const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
 
   // Detect everything on mount and on a manual refresh. We don't auto-poll —
   // a blind user re-reading the page should hear stable content, not have
@@ -128,6 +155,17 @@ export default function TroubleshootPage() {
 
   const blockedCount = rows.filter((r) => !r.report.available).length;
 
+  const refreshPermissionStatus = useCallback(async () => {
+    const [camera, microphone] = await Promise.all([
+      queryMediaPermission("camera"),
+      queryMediaPermission("microphone"),
+    ]);
+    setSetupStatus({
+      ...(camera ? { camera } : {}),
+      ...(microphone ? { microphone } : {}),
+    });
+  }, [setSetupStatus]);
+
   useEffect(() => {
     announce(
       blockedCount === 0
@@ -138,7 +176,22 @@ export default function TroubleshootPage() {
     // returning user with a fix in hand hears the new summary.
   }, [announce, blockedCount]);
 
+  useEffect(() => {
+    void refreshPermissionStatus();
+    const onFocus = () => void refreshPermissionStatus();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshPermissionStatus();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [refreshPermissionStatus]);
+
   const handleRefresh = () => {
+    void refreshPermissionStatus();
     setRefreshTick((t) => t + 1);
     announce("Status refreshed.");
   };

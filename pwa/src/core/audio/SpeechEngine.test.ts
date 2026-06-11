@@ -91,6 +91,30 @@ describe("SpeechEngine", () => {
     expect(getUtterance(synth, 1).text).toBe("urgent");
   });
 
+  it("repeatLast() replays the most recent utterance", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+
+    engine.speak("hello");
+
+    expect(engine.repeatLast()).toBe(true);
+    expect(synth.speak).toHaveBeenCalledTimes(2);
+    expect(getUtterance(synth, 1).text).toBe("hello");
+  });
+
+  it("does not replace repeat memory when remember is false", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+
+    engine.speak("content to repeat");
+    engine.interrupt("Listening.", { remember: false });
+
+    expect(engine.repeatLast()).toBe(true);
+    expect(getUtterance(synth, 2).text).toBe("content to repeat");
+  });
+
   it("default-priority speak queues behind the currently-playing utterance", () => {
     const synth = makeSynth();
     stubSpeech(synth);
@@ -108,6 +132,51 @@ describe("SpeechEngine", () => {
 
     expect(synth.speak).toHaveBeenCalledTimes(2);
     expect(getUtterance(synth, 1).text).toBe("second");
+  });
+
+  it("keeps per-speech end callbacks scoped to their own queued text", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const firstDone = vi.fn();
+    const secondDone = vi.fn();
+
+    engine.speak("first", { onEnd: firstDone });
+    engine.speak("second", { onEnd: secondDone });
+
+    getUtterance(synth, 0).onend?.();
+
+    expect(firstDone).toHaveBeenCalledTimes(1);
+    expect(secondDone).not.toHaveBeenCalled();
+
+    getUtterance(synth, 1).onend?.();
+
+    expect(secondDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires a per-speech end callback only after the final chunk", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const onEnd = vi.fn();
+    const longText = (
+      "First sentence is moderately long. " +
+      "Second sentence is also moderately long. " +
+      "Third sentence finishes the paragraph nicely. "
+    ).repeat(3);
+
+    engine.speak(longText, { onEnd });
+    getUtterance(synth, 0).onend?.();
+
+    expect(onEnd).not.toHaveBeenCalled();
+
+    while (synth.speak.mock.calls.length > onEnd.mock.calls.length + 1) {
+      const lastIndex = synth.speak.mock.calls.length - 1;
+      getUtterance(synth, lastIndex).onend?.();
+      if (onEnd.mock.calls.length > 0) break;
+    }
+
+    expect(onEnd).toHaveBeenCalledTimes(1);
   });
 
   it("chunks text past the 200-char limit into multiple utterances", () => {
@@ -150,6 +219,20 @@ describe("SpeechEngine", () => {
     // A late onend (after cancel) must not resurrect the queue.
     getUtterance(synth, 0).onend?.();
     expect(synth.speak).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop() does not report a natural end event", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const handler = vi.fn();
+
+    engine.setEventHandler(handler);
+    engine.speak("first");
+    engine.stop();
+
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalledWith("end");
   });
 
   it("is a no-op when speechSynthesis is missing", () => {

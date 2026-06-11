@@ -92,6 +92,28 @@ test.describe("Tactile Drill", () => {
     );
   });
 
+  test("radio groups support arrow-key selection with one tab stop", async ({ page }) => {
+    const letters = page.getByRole("radio", { name: "Letters" });
+    const words = page.getByRole("radio", { name: "Words" });
+
+    await expect(letters).toHaveAttribute("tabindex", "0");
+    await expect(words).toHaveAttribute("tabindex", "-1");
+
+    await letters.focus();
+    await page.keyboard.press("ArrowRight");
+
+    await expect(words).toHaveAttribute("aria-checked", "true");
+    await expect(words).toHaveAttribute("tabindex", "0");
+    await expect(letters).toHaveAttribute("tabindex", "-1");
+    await expect(words).toBeFocused();
+
+    await page.keyboard.press("End");
+    await expect(page.getByRole("radio", { name: "Mixed" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
   test("History panel grows with attempts and shows recent mistakes", async ({ page }) => {
     await page.getByRole("radio", { name: "Letters" }).click();
     // Start with no history.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "@/core/store/settingsStore";
@@ -6,6 +6,12 @@ import { speechEngine } from "@/core/audio/SpeechEngine";
 import { Button } from "@/components/Button";
 import { IconArrowLeft } from "@/components/Icons";
 import { platform } from "@/core/utils/platform";
+import {
+  detectCapability,
+  queryMediaPermission,
+  type CapabilityId,
+  type CapabilityReport,
+} from "@/core/utils/capabilities";
 import {
   LANGUAGE_LABELS,
   checkReadiness,
@@ -55,6 +61,14 @@ function FeaturesIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+    </svg>
+  );
+}
+function DeviceIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M9 7h6M9 17h6M8 11h.01M12 11h.01M16 11h.01M8 14h.01M12 14h.01M16 14h.01" />
     </svg>
   );
 }
@@ -152,7 +166,7 @@ function ToggleRow({
         <span
           aria-hidden="true"
           className="
-            block w-12 h-7 rounded-full
+            pointer-events-none block w-12 h-7 rounded-full
             bg-surface-3 border border-surface-border
             peer-checked:bg-primary-500/40 peer-checked:border-primary-400/60
             peer-focus-visible:ring-2 peer-focus-visible:ring-primary-400 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface-0
@@ -162,7 +176,7 @@ function ToggleRow({
         <span
           aria-hidden="true"
           className="
-            absolute top-0.5 left-0.5 w-6 h-6 rounded-full
+            pointer-events-none absolute top-0.5 left-0.5 w-6 h-6 rounded-full
             bg-stone-200 shadow-sm
             peer-checked:translate-x-5 peer-checked:bg-white
             transition-transform
@@ -176,6 +190,7 @@ function ToggleRow({
 export default function SettingsPage() {
   const navigate = useNavigate();
   const settings = useSettingsStore();
+  const setSetupStatus = useSettingsStore((s) => s.setSetupStatus);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
   const [readinessBusy, setReadinessBusy] = useState(false);
@@ -183,6 +198,8 @@ export default function SettingsPage() {
   const [precacheMessage, setPrecacheMessage] = useState("");
   const [clearMessage, setClearMessage] = useState("");
   const tactileStoreState = useTactileStore;
+  const persistImportedText = useTactileStore((s) => s.persistImportedText);
+  const setPersistImportedText = useTactileStore((s) => s.setPersistImportedText);
 
   useEffect(() => {
     speechEngine.init();
@@ -248,6 +265,7 @@ export default function SettingsPage() {
     tactileStoreState.setState({
       lastImportedText: "",
       lastImportSource: "",
+      persistImportedText: false,
       translatorMode: "g1",
       language: "en-g2",
       groupSize: 1,
@@ -268,12 +286,41 @@ export default function SettingsPage() {
     settings.setFontSize(20);
     settings.setHapticEnabled(true);
     settings.setSpatialAudioEnabled(true);
-    setClearMessage("Cleared imported text, drill history, language, and per-page settings.");
+    settings.setVisionRetainHistory(true);
+    settings.setVoiceConfirmAloud(true);
+    settings.resetSetupStatus();
+    settings.setLastSession(null);
+    setClearMessage("Cleared imported text, reader resume history, drill history, language, and per-page settings.");
   }, [settings, tactileStoreState]);
+
+  const refreshPermissionStatus = useCallback(async () => {
+    const [camera, microphone] = await Promise.all([
+      queryMediaPermission("camera"),
+      queryMediaPermission("microphone"),
+    ]);
+    setSetupStatus({
+      ...(camera ? { camera } : {}),
+      ...(microphone ? { microphone } : {}),
+    });
+  }, [setSetupStatus]);
 
   useEffect(() => {
     void runReadinessCheck();
   }, [runReadinessCheck]);
+
+  useEffect(() => {
+    void refreshPermissionStatus();
+    const onFocus = () => void refreshPermissionStatus();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshPermissionStatus();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [refreshPermissionStatus]);
 
   return (
     <div className="min-h-screen px-4 sm:px-6 py-6 sm:py-8 max-w-3xl mx-auto">
@@ -459,6 +506,8 @@ export default function SettingsPage() {
         onTroubleshoot={() => navigate("/troubleshoot")}
       />
 
+      <DeviceCapabilitiesPanel />
+
       <OfflineReadinessPanel
         report={readiness}
         busy={readinessBusy}
@@ -473,8 +522,161 @@ export default function SettingsPage() {
         clearMessage={clearMessage}
         visionRetainHistory={settings.visionRetainHistory}
         onSetVisionRetainHistory={settings.setVisionRetainHistory}
+        persistImportedText={persistImportedText}
+        onSetPersistImportedText={setPersistImportedText}
       />
     </div>
+  );
+}
+
+const CAPABILITY_ROWS: Array<{
+  id: CapabilityId;
+  label: string;
+  help: string;
+  readyAction: string;
+}> = [
+  {
+    id: "camera",
+    label: "Camera",
+    help: "Used by AI Vision for scene descriptions.",
+    readyAction: "Open AI Vision and grant permission when prompted.",
+  },
+  {
+    id: "microphone",
+    label: "Microphone",
+    help: "Used by Voice Navigation and spoken commands.",
+    readyAction: "Open Voice Navigation and grant permission when prompted.",
+  },
+  {
+    id: "speech-recognition",
+    label: "Speech recognition",
+    help: "Turns spoken commands into app actions.",
+    readyAction: "Press F6 or tap the microphone button to test commands.",
+  },
+  {
+    id: "speech-synthesis",
+    label: "Speech output",
+    help: "Reads app responses, descriptions, and reader text aloud.",
+    readyAction: "Use Test speech above to confirm the selected voice.",
+  },
+  {
+    id: "vibration",
+    label: "Vibration",
+    help: "Provides haptic orientation cues on supported devices.",
+    readyAction: "Keep haptic feedback enabled for touch exploration.",
+  },
+  {
+    id: "clipboard-read",
+    label: "Clipboard paste",
+    help: "Imports text into Reader and Tactile Lab.",
+    readyAction: "Use Paste in the Tactile Lab, or upload a text file.",
+  },
+  {
+    id: "clipboard-write",
+    label: "Clipboard copy",
+    help: "Copies generated descriptions and exported frame text.",
+    readyAction: "Use Copy actions where available.",
+  },
+  {
+    id: "web-serial",
+    label: "Web Serial",
+    help: "Streams tactile frames directly to supported microcontrollers.",
+    readyAction: "Connect hardware from Tactile Lab on Chrome or Edge.",
+  },
+  {
+    id: "web-hid",
+    label: "WebHID",
+    help: "Sends frames to HID-class tactile or braille devices.",
+    readyAction: "Use a Chromium browser and connect the device in Tactile Lab.",
+  },
+  {
+    id: "service-worker",
+    label: "Service worker",
+    help: "Keeps the app shell available offline after install.",
+    readyAction: "Install the app, then check offline readiness below.",
+  },
+  {
+    id: "cache-storage",
+    label: "Offline storage",
+    help: "Stores app files and braille tables for offline use.",
+    readyAction: "Cache language tables before going offline.",
+  },
+];
+
+function DeviceCapabilitiesPanel() {
+  const rows = useMemo(
+    () =>
+      CAPABILITY_ROWS.map((row) => ({
+        ...row,
+        report: detectCapability(row.id),
+      })),
+    []
+  );
+  const supported = rows.filter((row) => row.report.available).length;
+
+  return (
+    <Panel
+      id="device-capabilities"
+      title="Device capabilities"
+      description={`${supported} of ${rows.length} capabilities are available in this browser. Each row includes the next useful action.`}
+      icon={<span className="text-sky-300"><DeviceIcon /></span>}
+      accent="bg-sky-500/10 border-sky-400/30"
+    >
+      <ul className="space-y-2" aria-label="Device capability diagnostics">
+        {rows.map((row) => (
+          <CapabilityRow
+            key={row.id}
+            label={row.label}
+            help={row.help}
+            readyAction={row.readyAction}
+            report={row.report}
+          />
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+function CapabilityRow({
+  label,
+  help,
+  readyAction,
+  report,
+}: {
+  label: string;
+  help: string;
+  readyAction: string;
+  report: CapabilityReport;
+}) {
+  const dot = report.available ? "bg-emerald-400 text-emerald-400" : "bg-amber-400 text-amber-400";
+  const copy = report.available ? "Available" : "Needs fallback";
+  const copyClass = report.available ? "text-emerald-300" : "text-amber-300";
+  const action = report.available ? readyAction : report.suggestion;
+
+  return (
+    <li
+      className="surface-card border border-surface-border rounded-xl p-3"
+      aria-label={`${label}: ${copy}. ${help} Next action: ${action}`}
+    >
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className={`mt-1.5 inline-block w-2.5 h-2.5 rounded-full ${dot} shadow-[0_0_8px_currentColor]`} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <span className="text-stone-50 font-medium">{label}</span>
+            <span className={`text-sm ${copyClass}`}>{copy}</span>
+          </div>
+          <p className="text-xs text-stone-400 mt-1 leading-relaxed">{help}</p>
+          {!report.available && (
+            <p className="text-xs text-amber-200 mt-2 leading-relaxed">
+              {report.reason}
+            </p>
+          )}
+          <p className="text-xs text-stone-300 mt-2 leading-relaxed">
+            <span className="font-medium text-stone-100">Next:</span> {action}
+          </p>
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -592,11 +794,15 @@ function PrivacyPanel({
   clearMessage,
   visionRetainHistory,
   onSetVisionRetainHistory,
+  persistImportedText,
+  onSetPersistImportedText,
 }: {
   onClearLocalData: () => void;
   clearMessage: string;
   visionRetainHistory: boolean;
   onSetVisionRetainHistory: (enabled: boolean) => void;
+  persistImportedText: boolean;
+  onSetPersistImportedText: (enabled: boolean) => void;
 }) {
   return (
     <Panel
@@ -607,12 +813,20 @@ function PrivacyPanel({
       accent="bg-rose-500/10 border-rose-400/30"
     >
       <div className="mb-4 pb-4 border-b border-surface-border">
-        <ToggleRow
-          checked={visionRetainHistory}
-          onChange={onSetVisionRetainHistory}
-          label="Keep AI Vision history this session"
-          hint="When off, only the most recent description is kept in memory. History never leaves your device."
-        />
+        <div className="space-y-2">
+          <ToggleRow
+            checked={visionRetainHistory}
+            onChange={onSetVisionRetainHistory}
+            label="Keep AI Vision history this session"
+            hint="When off, only the most recent description is kept in memory. History never leaves your device."
+          />
+          <ToggleRow
+            checked={persistImportedText}
+            onChange={onSetPersistImportedText}
+            label="Remember Tactile Lab imports across restarts"
+            hint="Off by default. When off, clipboard, file, and Reader text stay only in this tab session."
+          />
+        </div>
       </div>
       <ul className="space-y-2" aria-label="Privacy disclosures">
         {DISCLOSURES.map((d) => (
@@ -729,7 +943,7 @@ function OfflineReadinessPanel({
               key={lang}
               label={`${LANGUAGE_LABELS[lang] ?? lang} table`}
               status={report.tables[lang] ?? "unknown"}
-              help="Loads on first Grade 2 translation in that language."
+              help="Entry table plus required includes for offline Grade 2 translation."
             />
           ))}
       </ul>
