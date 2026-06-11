@@ -9,7 +9,8 @@
   },
   "scripts": {
     "predev": "node scripts/copy-liblouis-assets.mjs",
-    "dev": "vite",
+    "dev": "node scripts/start-dev.mjs",
+    "dev:client": "vite",
     "check-env": "node scripts/check-env-leakage.mjs",
     "copy-liblouis": "node scripts/copy-liblouis-assets.mjs",
     "prebuild": "npm run check-env && npm run copy-liblouis",

@@ -34,7 +34,10 @@ const READER_FETCH_MAX_REDIRECTS = 3;
 // Origin allowlist. Only requests whose Origin header matches one of these are
 // served. Defaults cover Vite dev (5173) and preview (4173). In production set
 // ALLOWED_ORIGINS to the deployed origin(s), comma-separated.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://localhost:4173")
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ??
+  "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
+)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
