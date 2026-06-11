@@ -6,9 +6,23 @@ import { useSettingsStore } from "@/core/store/settingsStore";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { platform } from "@/core/utils/platform";
 import { queryMediaPermission } from "@/core/utils/capabilities";
+import {
+  checkReadiness,
+  isOfflineBrailleReady,
+  type ReadinessReport,
+  type Status,
+} from "@/core/utils/offlineReadiness";
 
-const steps = [
+type StepId = "welcome" | "touch" | "permissions" | "voice" | "readiness";
+
+const steps: Array<{
+  id: StepId;
+  title: string;
+  description: string;
+  speech: string;
+}> = [
   {
+    id: "welcome",
     title: "Welcome to isVisible",
     description:
       "An accessibility platform that lets you touch, hear, and navigate the visual world. Built for blind and visually impaired users.",
@@ -16,6 +30,7 @@ const steps = [
       "Welcome to isVisible. I am your accessibility assistant. This setup is audio guided. I will move focus to the next control for you.",
   },
   {
+    id: "touch",
     title: "Touch Explorer",
     description:
       "Slide your finger across the screen to hear what's there. Buttons, links, headings, and page sections can speak with sound and vibration feedback.",
@@ -23,6 +38,7 @@ const steps = [
       "Touch Explorer lets you slide your finger across the screen. Each element you touch is spoken aloud with haptic feedback when your device supports vibration.",
   },
   {
+    id: "permissions",
     title: "Permissions",
     description:
       "Camera access powers AI Vision. Microphone access powers Voice Navigation. Both are optional and can be granted later.",
@@ -30,11 +46,20 @@ const steps = [
       "Camera and microphone access are optional. Use the camera button for AI Vision, or the microphone button for Voice Navigation. Your browser will ask you to allow or block each permission.",
   },
   {
+    id: "voice",
     title: "Voice",
     description:
       "Choose the speech voice used by the app. The system default is selected unless you choose a different voice.",
     speech:
       "Choose the speech voice used by the app. The system default is already selected. Move to the list if you want another voice.",
+  },
+  {
+    id: "readiness",
+    title: "Readiness",
+    description:
+      "Review what is ready on this device. You can start now and finish any missing item later from Settings.",
+    speech:
+      "Review the setup checklist. Camera, microphone, voice, haptics, and offline braille table readiness are shown here.",
   },
 ];
 
@@ -70,6 +95,52 @@ function BrandMark() {
   );
 }
 
+function setupCopy(state: "granted" | "denied" | "unknown") {
+  if (state === "granted") return { label: "Ready", tone: "text-emerald-300", dot: "bg-emerald-400" };
+  if (state === "denied") return { label: "Blocked", tone: "text-rose-300", dot: "bg-rose-400" };
+  return { label: "Not set", tone: "text-amber-300", dot: "bg-amber-400" };
+}
+
+function readinessCopy(status: Status) {
+  if (status === "cached") return { label: "Cached", tone: "text-emerald-300", dot: "bg-emerald-400" };
+  if (status === "missing") return { label: "Missing", tone: "text-amber-300", dot: "bg-amber-400" };
+  return { label: "Not checked", tone: "text-stone-300", dot: "bg-stone-500" };
+}
+
+function offlineBrailleStatus(report: ReadinessReport | null): Status {
+  if (!report) return "unknown";
+  if (isOfflineBrailleReady(report)) return "cached";
+  const statuses = [report.liblouisRuntime, ...Object.values(report.tables)];
+  if (statuses.some((status) => status === "missing")) return "missing";
+  return "unknown";
+}
+
+function ReadinessItem({
+  label,
+  status,
+  hint,
+}: {
+  label: string;
+  status: { label: string; tone: string; dot: string };
+  hint: string;
+}) {
+  return (
+    <li
+      className="flex items-start gap-3 rounded-xl border border-surface-border bg-surface-2 p-3"
+      aria-label={`${label}: ${status.label}. ${hint}`}
+    >
+      <span aria-hidden="true" className={`mt-1.5 h-2.5 w-2.5 rounded-full ${status.dot}`} />
+      <div className="flex-1 min-w-0" aria-hidden="true">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <span className="text-stone-50 font-medium">{label}</span>
+          <span className={`text-sm ${status.tone}`}>{status.label}</span>
+        </div>
+        <p className="text-xs text-stone-400 mt-1 leading-relaxed">{hint}</p>
+      </div>
+    </li>
+  );
+}
+
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -80,6 +151,8 @@ export default function OnboardingPage() {
   // tapped past it once and shouldn't be forced through it again.
   const [audioStarted, setAudioStarted] = useState(isRestart);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [readinessReport, setReadinessReport] = useState<ReadinessReport | null>(null);
+  const [readinessBusy, setReadinessBusy] = useState(false);
   const setupStatus = useSettingsStore((s) => s.setupStatus);
   const [cameraGranted, setCameraGranted] = useState<boolean | null>(
     setupStatus.camera === "unknown" ? null : setupStatus.camera === "granted"
@@ -220,9 +293,40 @@ export default function OnboardingPage() {
     }
   };
 
+  const refreshOfflineReadiness = useCallback(async () => {
+    setReadinessBusy(true);
+    try {
+      const report = await checkReadiness();
+      const ready = isOfflineBrailleReady(report);
+      setReadinessReport(report);
+      setSetupStatus({ offlineTablesCached: ready });
+      announce(
+        ready
+          ? "Offline braille tables are cached."
+          : "Offline braille tables are not fully cached yet."
+      );
+    } finally {
+      setReadinessBusy(false);
+    }
+  }, [announce, setSetupStatus]);
+
   const currentStep = steps[step]!;
   const isLast = step === steps.length - 1;
-  const isPermissionsStep = step === 2;
+  const isPermissionsStep = currentStep.id === "permissions";
+  const isVoiceStep = currentStep.id === "voice";
+  const isReadinessStep = currentStep.id === "readiness";
+
+  useEffect(() => {
+    if (audioStarted && isReadinessStep && !readinessReport && !readinessBusy) {
+      void refreshOfflineReadiness();
+    }
+  }, [
+    audioStarted,
+    isReadinessStep,
+    readinessBusy,
+    readinessReport,
+    refreshOfflineReadiness,
+  ]);
 
   const handleNext = () => {
     if (!audioStarted) {
@@ -232,12 +336,14 @@ export default function OnboardingPage() {
 
     if (isLast) {
       announce("Setup complete. Opening the home screen.");
-      // Treat reaching the end as voice-confirmation — either the user explicitly
-      // picked a voice or accepted system default, both are intentional choices.
-      setSetupStatus({ voiceConfirmed: true });
       completeOnboarding();
       navigate(nextPath, { replace: true });
     } else {
+      if (isVoiceStep) {
+        // Leaving the voice step means the user accepted the selected voice,
+        // including the system default.
+        setSetupStatus({ voiceConfirmed: true });
+      }
       setStep((s) => s + 1);
     }
   };
@@ -375,7 +481,7 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {isLast && (
+      {isVoiceStep && (
         <div className="w-full mb-8">
           <label htmlFor="onboard-voice" className="block text-sm text-stone-300 mb-2 text-center">
             Select a voice
@@ -399,6 +505,63 @@ export default function OnboardingPage() {
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {isReadinessStep && (
+        <div className="w-full mb-8 space-y-3">
+          <ul className="space-y-2" aria-label="Setup readiness checklist">
+            <ReadinessItem
+              label="Camera access"
+              status={setupCopy(setupStatus.camera)}
+              hint="Used by AI Vision. You can grant it later inside setup or AI Vision."
+            />
+            <ReadinessItem
+              label="Microphone access"
+              status={setupCopy(setupStatus.microphone)}
+              hint="Used by Voice Navigation. The app still works without it."
+            />
+            <ReadinessItem
+              label="Voice"
+              status={
+                setupStatus.voiceConfirmed
+                  ? setupCopy("granted")
+                  : setupCopy("unknown")
+              }
+              hint="The selected voice is used for reader, guidance, and confirmations."
+            />
+            <ReadinessItem
+              label="Haptic feedback"
+              status={
+                platform.supportsVibration
+                  ? setupCopy("granted")
+                  : { label: "Audio fallback", tone: "text-amber-300", dot: "bg-amber-400" }
+              }
+              hint="Vibration adds touch cues on supported devices."
+            />
+            <ReadinessItem
+              label="Offline braille tables"
+              status={
+                setupStatus.offlineTablesCached
+                  ? readinessCopy("cached")
+                  : readinessCopy(offlineBrailleStatus(readinessReport))
+              }
+              hint="Cached Liblouis assets keep Grade 2 braille translation available offline."
+            />
+          </ul>
+          <Button
+            onClick={refreshOfflineReadiness}
+            disabled={readinessBusy}
+            variant="secondary"
+            className="w-full"
+          >
+            {readinessBusy ? "Checking..." : "Check offline readiness"}
+          </Button>
+          {readinessReport && !readinessReport.cacheApiAvailable && (
+            <p className="text-sm text-amber-200 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-400/20" role="alert">
+              Offline caching needs an installed app, HTTPS, or localhost.
+            </p>
+          )}
         </div>
       )}
 
@@ -432,7 +595,7 @@ export default function OnboardingPage() {
         <Button onClick={repeatCurrentStep} variant="secondary" className="w-full">
           Repeat guidance
         </Button>
-        {isPermissionsStep && (
+        {(isPermissionsStep || isReadinessStep) && (
           <button
             type="button"
             onClick={finishLater}

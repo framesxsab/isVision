@@ -4,7 +4,7 @@
  * catch: <44px tap targets, horizontal overflow, and the bottom-nav
  * geometry per device.
  *
- * Prereq: dev server running on http://localhost:5173 (`npm run dev`).
+ * Prereq: dev server running on http://127.0.0.1:5173 (`npm run dev`).
  * Run:    `npm run audit:mobile`
  * Output: screenshots + JSON report under `.audit/` (gitignored).
  */
@@ -14,6 +14,7 @@ import { join } from "node:path";
 
 const OUT_DIR = ".audit";
 mkdirSync(OUT_DIR, { recursive: true });
+const BASE_URL = process.env.MOBILE_AUDIT_BASE_URL ?? "http://127.0.0.1:5173";
 
 const TARGETS = [
   { name: "iphone-se", width: 375, height: 667, dpr: 2 },
@@ -39,9 +40,14 @@ const SETTINGS_BOOTSTRAP = JSON.stringify({
     hapticEnabled: true,
     voiceNavEnabled: true,
     offlineFirst: true,
-    setupStatus: { camera: "denied", microphone: "unknown", voiceConfirmed: false },
+    setupStatus: {
+      camera: "denied",
+      microphone: "unknown",
+      voiceConfirmed: false,
+      offlineTablesCached: false,
+    },
   },
-  version: 1,
+  version: 5,
 });
 
 const browser = await chromium.launch();
@@ -57,13 +63,13 @@ for (const t of TARGETS) {
   });
 
   const page = await context.newPage();
-  await page.goto("http://localhost:5173/", { waitUntil: "domcontentloaded" });
+  await page.goto(BASE_URL + "/", { waitUntil: "domcontentloaded" });
   await page.evaluate((bootstrap) => {
     localStorage.setItem("isvisible-settings", bootstrap);
   }, SETTINGS_BOOTSTRAP);
 
   for (const r of ROUTES) {
-    await page.goto("http://localhost:5173" + r.path, { waitUntil: "networkidle" });
+    await page.goto(BASE_URL + r.path, { waitUntil: "networkidle" });
     await page.waitForTimeout(500);
     await page.screenshot({ path: join(OUT_DIR, `mobile-${t.name}-${r.name}-top.png`), fullPage: false });
 

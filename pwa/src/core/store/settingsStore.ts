@@ -7,12 +7,14 @@ export interface SetupStatus {
   camera: PermissionState;
   microphone: PermissionState;
   voiceConfirmed: boolean;
+  offlineTablesCached: boolean;
 }
 
 const DEFAULT_SETUP_STATUS: SetupStatus = {
   camera: "unknown",
   microphone: "unknown",
   voiceConfirmed: false,
+  offlineTablesCached: false,
 };
 
 // LastSession is the resume-on-launch breadcrumb. It is intentionally
@@ -114,17 +116,20 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "isvisible-settings",
-      version: 4,
+      version: 5,
       // v0 → v1: add setupStatus default.
       // v1 → v2: add visionRetainHistory default.
       // v2 → v3: add lastSession default (null).
       // v3 → v4: add voiceConfirmAloud default (true).
+      // v4 → v5: add setupStatus.offlineTablesCached default.
       // Keep each step tolerant — any missing field just gets the default appended.
       migrate: (persisted, version) => {
         const base = (persisted ?? {}) as Partial<SettingsState>;
         const next: Partial<SettingsState> = { ...base };
         if (version < 1 || !next.setupStatus) {
           next.setupStatus = { ...DEFAULT_SETUP_STATUS };
+        } else {
+          next.setupStatus = { ...DEFAULT_SETUP_STATUS, ...next.setupStatus };
         }
         if (version < 2 || typeof next.visionRetainHistory !== "boolean") {
           next.visionRetainHistory = true;
@@ -134,6 +139,16 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 4 || typeof next.voiceConfirmAloud !== "boolean") {
           next.voiceConfirmAloud = true;
+        }
+        if (
+          version < 5 ||
+          typeof next.setupStatus?.offlineTablesCached !== "boolean"
+        ) {
+          next.setupStatus = {
+            ...DEFAULT_SETUP_STATUS,
+            ...next.setupStatus,
+            offlineTablesCached: false,
+          };
         }
         return next as SettingsState;
       },

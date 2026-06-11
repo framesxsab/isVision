@@ -131,6 +131,7 @@ export default function TactileDrillPage() {
   const [cursor, setCursor] = useState(0);
   const [guess, setGuess] = useState("");
   const [feedback, setFeedback] = useState<"idle" | "correct" | "wrong">("idle");
+  const [promptStartedAt, setPromptStartedAt] = useState(() => Date.now());
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const current = history[cursor]!;
@@ -149,6 +150,7 @@ export default function TactileDrillPage() {
     setCursor(0);
     setGuess("");
     setFeedback("idle");
+    setPromptStartedAt(Date.now());
     // Intentionally exclude buildNextPrompt from deps — it changes on every
     // attempt as attemptHistory grows, which would re-trigger this effect
     // mid-session and reset the cursor. Only mode/difficulty/practiceMistakes
@@ -169,6 +171,7 @@ export default function TactileDrillPage() {
 
   const submit = useCallback(() => {
     if (guess.trim().length === 0) return;
+    const submittedAt = Date.now();
     const { next, correct } = scoreAttempt(score, current.answer, guess);
     setScoreStored(next);
     pushDrillAttempt({
@@ -176,7 +179,11 @@ export default function TactileDrillPage() {
       kind: current.kind,
       guess: guess.trim(),
       correct,
-      at: Date.now(),
+      at: submittedAt,
+      mode,
+      difficulty,
+      speechMode,
+      responseTimeMs: submittedAt - promptStartedAt,
     });
     setFeedback(correct ? "correct" : "wrong");
     const accuracy = accuracyPercent(next);
@@ -188,7 +195,18 @@ export default function TactileDrillPage() {
       : `Not quite. The answer was ${spoken}.`;
     announce(message);
     speechEngine.interrupt(message);
-  }, [announce, current, guess, score, setScoreStored, pushDrillAttempt]);
+  }, [
+    announce,
+    current,
+    difficulty,
+    guess,
+    mode,
+    promptStartedAt,
+    score,
+    setScoreStored,
+    speechMode,
+    pushDrillAttempt,
+  ]);
 
   const advance = useCallback(() => {
     setHistory((prev) => {
@@ -200,6 +218,7 @@ export default function TactileDrillPage() {
     setCursor((c) => c + 1);
     setGuess("");
     setFeedback("idle");
+    setPromptStartedAt(Date.now());
     inputRef.current?.focus();
   }, [cursor, buildNextPrompt]);
 
@@ -208,6 +227,7 @@ export default function TactileDrillPage() {
     setCursor(cursor - 1);
     setGuess("");
     setFeedback("idle");
+    setPromptStartedAt(Date.now());
   }, [cursor]);
 
   const repeat = useCallback(() => {
@@ -226,6 +246,7 @@ export default function TactileDrillPage() {
     setCursor(0);
     setGuess("");
     setFeedback("idle");
+    setPromptStartedAt(Date.now());
     announce("Drill reset. Score cleared.");
   }, [announce, buildNextPrompt, resetDrillScore]);
 

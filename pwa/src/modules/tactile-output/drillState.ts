@@ -24,6 +24,10 @@ export interface DrillAttempt {
   guess: string;
   correct: boolean;
   at: number;
+  mode?: DrillMode;
+  difficulty?: Difficulty;
+  speechMode?: string;
+  responseTimeMs?: number;
 }
 
 export const INITIAL_SCORE: DrillScore = { attempts: 0, correct: 0, streak: 0 };
@@ -151,14 +155,19 @@ export function recordAttempt(
 // CSV serialiser used by the "Export" button. Header is fixed so a spreadsheet
 // or a future analytics tool can rely on the columns. Quoting follows RFC 4180.
 export function historyToCsv(history: readonly DrillAttempt[]): string {
-  const header = "at_iso,kind,answer,guess,correct";
+  const header =
+    "at_iso,mode,difficulty,speech_mode,prompt_kind,expected_answer,user_answer,correct,response_time_ms";
   const rows = history.map((a) =>
     [
       new Date(a.at).toISOString(),
+      csvEscape(a.mode ?? ""),
+      csvEscape(a.difficulty ?? ""),
+      csvEscape(a.speechMode ?? ""),
       csvEscape(a.kind),
       csvEscape(a.answer),
       csvEscape(a.guess),
       a.correct ? "1" : "0",
+      typeof a.responseTimeMs === "number" ? String(Math.max(0, Math.round(a.responseTimeMs))) : "",
     ].join(",")
   );
   return [header, ...rows].join("\n");

@@ -154,14 +154,40 @@ describe("recordAttempt + history cap", () => {
 describe("historyToCsv", () => {
   it("emits a header row followed by one row per attempt", () => {
     const csv = historyToCsv([
-      { answer: "cat", kind: "short word", guess: "cat", correct: true, at: 0 },
-      { answer: "5", kind: "number", guess: "6", correct: false, at: 1000 },
+      {
+        answer: "cat",
+        kind: "short word",
+        guess: "cat",
+        correct: true,
+        at: 0,
+        mode: "word",
+        difficulty: "easy",
+        speechMode: "speech+tactile",
+        responseTimeMs: 1234.4,
+      },
+      {
+        answer: "5",
+        kind: "number",
+        guess: "6",
+        correct: false,
+        at: 1000,
+        mode: "number",
+        difficulty: "hard",
+        speechMode: "silent",
+        responseTimeMs: 2500,
+      },
     ]);
     const lines = csv.split("\n");
-    expect(lines[0]).toBe("at_iso,kind,answer,guess,correct");
+    expect(lines[0]).toBe(
+      "at_iso,mode,difficulty,speech_mode,prompt_kind,expected_answer,user_answer,correct,response_time_ms"
+    );
     expect(lines).toHaveLength(3);
-    expect(lines[1]).toMatch(/^1970-01-01T00:00:00.000Z,short word,cat,cat,1$/);
-    expect(lines[2]).toMatch(/^1970-01-01T00:00:01.000Z,number,5,6,0$/);
+    expect(lines[1]).toMatch(
+      /^1970-01-01T00:00:00.000Z,word,easy,speech\+tactile,short word,cat,cat,1,1234$/
+    );
+    expect(lines[2]).toMatch(
+      /^1970-01-01T00:00:01.000Z,number,hard,silent,number,5,6,0,2500$/
+    );
   });
 
   it("RFC 4180-quotes fields that contain commas or quotes", () => {
@@ -176,7 +202,18 @@ describe("historyToCsv", () => {
   });
 
   it("produces only a header for an empty history", () => {
-    expect(historyToCsv([])).toBe("at_iso,kind,answer,guess,correct");
+    expect(historyToCsv([])).toBe(
+      "at_iso,mode,difficulty,speech_mode,prompt_kind,expected_answer,user_answer,correct,response_time_ms"
+    );
+  });
+
+  it("keeps older persisted attempts exportable when metrics are missing", () => {
+    const csv = historyToCsv([
+      { answer: "a", kind: "single letter", guess: "b", correct: false, at: 0 },
+    ]);
+    expect(csv.split("\n")[1]).toBe(
+      "1970-01-01T00:00:00.000Z,,,,single letter,a,b,0,"
+    );
   });
 });
 

@@ -5,6 +5,7 @@
 // works, reset wipes the score.
 
 import { test, expect, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 async function skipOnboarding(page: Page) {
   await page.addInitScript(() => {
@@ -132,6 +133,44 @@ test.describe("Tactile Drill", () => {
     await page.locator("#drill-input").fill("zzz");
     await page.locator("#drill-input").press("Enter");
     await expect(button).toBeEnabled();
+  });
+
+  test("Practice mistakes turns on after a wrong answer", async ({ page }) => {
+    const toggle = page.getByTestId("toggle-practice-mistakes");
+    await expect(toggle).toBeDisabled();
+
+    await page.getByRole("radio", { name: "Letters" }).click();
+    await page.locator("#drill-input").fill("zzz");
+    await page.locator("#drill-input").press("Enter");
+
+    await expect(toggle).toBeEnabled();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await expect(toggle).toContainText("drilling your weak spots");
+  });
+
+  test("Export CSV includes mode, difficulty, speech mode, and response time", async ({
+    page,
+  }) => {
+    await page.getByRole("radio", { name: "Words" }).click();
+    await page.getByRole("radio", { name: "Easy" }).click();
+    await page.getByRole("radio", { name: "Speech + tactile" }).click();
+
+    await page.locator("#drill-input").fill("wrong");
+    await page.locator("#drill-input").press("Enter");
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByTestId("drill-export-csv").click(),
+    ]);
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+    const csv = await readFile(filePath!, "utf8");
+    expect(csv.split("\n")[0]).toBe(
+      "at_iso,mode,difficulty,speech_mode,prompt_kind,expected_answer,user_answer,correct,response_time_ms"
+    );
+    expect(csv).toContain(",word,easy,speech+tactile,");
+    expect(csv).toMatch(/,0,\d+\n\nanswer,kind,attempts,correct,accuracy_percent/);
   });
 
   test("Reset zeroes the score", async ({ page }) => {

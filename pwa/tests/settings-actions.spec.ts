@@ -31,11 +31,16 @@ test.describe("Settings action buttons", () => {
               payload: { url: "https://example.com/private", title: "Private note" },
               updatedAt: Date.now(),
             },
-            setupStatus: { camera: "granted", microphone: "denied", voiceConfirmed: true },
+            setupStatus: {
+              camera: "granted",
+              microphone: "denied",
+              voiceConfirmed: true,
+              offlineTablesCached: true,
+            },
             visionRetainHistory: false,
             voiceConfirmAloud: false,
           },
-          version: 4,
+          version: 5,
         })
       );
       localStorage.setItem(
@@ -92,6 +97,7 @@ test.describe("Settings action buttons", () => {
       camera: "unknown",
       microphone: "unknown",
       voiceConfirmed: false,
+      offlineTablesCached: false,
     });
     expect(post?.visionRetainHistory).toBe(true);
     expect(post?.voiceConfirmAloud).toBe(true);

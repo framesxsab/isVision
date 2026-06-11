@@ -160,6 +160,16 @@ export async function checkReadiness(
   };
 }
 
+export function isOfflineBrailleReady(report: ReadinessReport): boolean {
+  const tableStatuses = Object.values(report.tables);
+  return (
+    report.cacheApiAvailable &&
+    report.liblouisRuntime === "cached" &&
+    tableStatuses.length > 0 &&
+    tableStatuses.every((status) => status === "cached")
+  );
+}
+
 // Human-readable labels for the language ids — the Settings panel needs them
 // next to each row, and keeping the mapping next to the rest of the
 // readiness code beats threading the strings through props.

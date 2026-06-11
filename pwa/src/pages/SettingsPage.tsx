@@ -15,6 +15,7 @@ import {
 import {
   LANGUAGE_LABELS,
   checkReadiness,
+  isOfflineBrailleReady,
   type ReadinessReport,
   type Status,
 } from "@/core/utils/offlineReadiness";
@@ -233,10 +234,11 @@ export default function SettingsPage() {
     try {
       const report = await checkReadiness();
       setReadiness(report);
+      setSetupStatus({ offlineTablesCached: isOfflineBrailleReady(report) });
     } finally {
       setReadinessBusy(false);
     }
-  }, []);
+  }, [setSetupStatus]);
 
   const precacheLanguages = useCallback(async () => {
     setPrecacheBusy(true);
@@ -708,11 +710,20 @@ function SetupPanel({
         | "denied",
       hint: "Confirm the speech voice or accept system default.",
     },
+    {
+      label: "Offline braille tables",
+      state: (setupStatus.offlineTablesCached ? "granted" : "unknown") as
+        | "granted"
+        | "unknown"
+        | "denied",
+      hint: "Caches Liblouis assets for offline Grade 2 translation.",
+    },
   ];
   const allReady =
     setupStatus.camera === "granted" &&
     setupStatus.microphone === "granted" &&
-    setupStatus.voiceConfirmed;
+    setupStatus.voiceConfirmed &&
+    setupStatus.offlineTablesCached;
   return (
     <Panel
       id="setup"
