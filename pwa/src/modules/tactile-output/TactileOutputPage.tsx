@@ -777,7 +777,7 @@ function BrailleDotCell({
       }`}
     >
       <div className="grid grid-cols-2 gap-1 w-10 mx-auto">
-        {[1, 4, 2, 5, 3, 6].map((dot) => (
+        {[1, 4, 2, 5, 3, 6, 7, 8].map((dot) => (
           <span
             key={dot}
             className={`w-4 h-4 rounded-full border ${

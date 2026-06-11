@@ -30,7 +30,7 @@ From the PWA:
 
 The firmware uses the first mask in each frame for a one-cell prototype. Multi-cell hardware can extend the same `F` line by reading additional masks.
 
-Malformed protocol lines are rejected instead of coerced. `hold_ms` must be an integer from `100` to `5000`, `blank` must be `0` or `1`, frame indices and `cellStart` must be non-negative integers, and every mask on an `F` line must be in the six-dot range `0..63`. Rejected frames leave the current pins unchanged; queue overflow and line overflow blank the pins and abort the current batch.
+Malformed protocol lines are rejected instead of coerced. `hold_ms` must be an integer from `100` to `5000`, `blank` must be `0` or `1`, frame indices and `cellStart` must be non-negative integers, and every mask on an `F` line must be in the eight-dot range `0..255`. This six-dot prototype drives dots 1-6 and ignores dots 7-8. Rejected frames leave the current pins unchanged; queue overflow and line overflow blank the pins and abort the current batch.
 
 ## Frame hold is non-blocking
 

@@ -64,12 +64,15 @@ const CAPITAL_SIGN = 0b100000;
 const NUMBER_SIGN = 0b111100;
 
 export function createCell(mask: number, source: string, role: BrailleCell["role"] = "content"): BrailleCell {
+  const normalizedMask = mask & 0xff;
   return {
-    mask,
+    mask: normalizedMask,
     source,
     role,
-    dots: [1, 2, 3, 4, 5, 6].filter((dot) => (mask & (1 << (dot - 1))) !== 0),
-    unicode: String.fromCharCode(0x2800 + mask),
+    dots: [1, 2, 3, 4, 5, 6, 7, 8].filter(
+      (dot) => (normalizedMask & (1 << (dot - 1))) !== 0
+    ),
+    unicode: String.fromCharCode(0x2800 + normalizedMask),
   };
 }
 
@@ -255,8 +258,8 @@ export function parseCompactProtocol(text: string): ParsedCompactProtocol {
       let maskError = false;
       for (const tok of maskTokens) {
         const mask = Number(tok);
-        if (!Number.isInteger(mask) || mask < 0 || mask > 63) {
-          errors.push({ line: lineNo, content: raw, message: `Mask must be an integer 0-63, got "${tok}".` });
+        if (!Number.isInteger(mask) || mask < 0 || mask > 255) {
+          errors.push({ line: lineNo, content: raw, message: `Mask must be an integer 0-255, got "${tok}".` });
           maskError = true;
           break;
         }

@@ -244,8 +244,8 @@ void handleFrame(const String& line) {
     if (maskText.length() == 0) continue;
 
     unsigned long parsedMask = 0;
-    if (!parseUnsignedStrict(maskText, parsedMask) || parsedMask > 63) {
-      Serial.println("ERR mask must be an integer from 0 to 63");
+    if (!parseUnsignedStrict(maskText, parsedMask) || parsedMask > 255) {
+      Serial.println("ERR mask must be an integer from 0 to 255");
       return;
     }
     if (!sawMask) {
@@ -286,6 +286,8 @@ bool parseUnsignedStrict(String value, unsigned long& out) {
 }
 
 void setMask(byte mask) {
+  // This prototype has six physical pins. Dots 7/8 may arrive from an
+  // eight-dot software or HID path; leave them ignored rather than aborting.
   for (byte dot = 0; dot < 6; dot++) {
     bool raised = (mask & (1 << dot)) != 0;
     digitalWrite(DOT_PINS[dot], raised ? HIGH : LOW);

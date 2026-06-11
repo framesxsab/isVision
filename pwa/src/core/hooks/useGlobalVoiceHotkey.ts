@@ -23,7 +23,7 @@ export function useGlobalVoiceHotkey() {
       if (!speechRecognition.isSupported) return;
 
       e.preventDefault();
-      speechEngine.interrupt("Listening.", { remember: false });
+      speechEngine.interrupt("Listening for up to thirty seconds.", { remember: false });
 
       try {
         const result = await speechRecognition.listenWithAlternatives();

@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from isvisible import build_frames, translate_grade1_debug
+from isvisible import BrailleCell, build_frames, translate_grade1_debug
 
 
 class BrailleDebugTranslationTests(unittest.TestCase):
@@ -25,6 +25,12 @@ class BrailleDebugTranslationTests(unittest.TestCase):
 
         self.assertEqual([cell.role for cell in cells], ["number-sign", "content", "number-sign", "content"])
         self.assertEqual([cell.mask for cell in cells], [60, 1, 60, 26])
+
+    def test_cells_can_represent_all_eight_dots(self):
+        cell = BrailleCell(255, "", "content")
+
+        self.assertEqual(cell.dots, [1, 2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(cell.unicode, chr(0x28FF))
 
     def test_frames_group_cells(self):
         cells = translate_grade1_debug("abc")

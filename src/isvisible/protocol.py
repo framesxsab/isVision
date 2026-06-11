@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 PROTOCOL_HEADER = "# isVisible tactile compact protocol v1"
 DEFAULT_HOLD_MS = 900
 DEFAULT_BLANK = True
-MAX_CELL_MASK = 0x3F
+MAX_CELL_MASK = 0xFF
 
 
 class ProtocolError(ValueError):
@@ -129,7 +129,7 @@ def _parse_frame(line: str) -> Frame:
         raise ProtocolError("Frame index and cellStart must be non-negative")
     for mask in masks:
         if mask < 0 or mask > MAX_CELL_MASK:
-            raise ProtocolError(f"Cell mask out of range (0..63): {mask}")
+            raise ProtocolError(f"Cell mask out of range (0..255): {mask}")
     return Frame(index=index, cell_start=cell_start, masks=masks)
 
 

@@ -86,7 +86,7 @@ class StdoutSink:
         print(f"# hold_ms={cfg.hold_ms} blank={int(cfg.blank_between_frames)}")
 
     def on_frame(self, frame: Frame) -> None:
-        unicode_preview = "".join(chr(0x2800 + (m & 0x3F)) for m in frame.masks)
+        unicode_preview = "".join(chr(0x2800 + (m & 0xFF)) for m in frame.masks)
         masks = " ".join(f"0x{m:02x}" for m in frame.masks)
         print(f"frame {frame.index} @cell {frame.cell_start}: {unicode_preview}  [{masks}]")
 
@@ -166,9 +166,8 @@ class BrlttySink:
     error instead of trying to roll our own BrlAPI socket protocol.
 
     The daemon expects dot patterns as a sequence of 8-dot bytes via
-    ``writeDots``. Our masks are 6-dot in the lower bits, which the daemon
-    interprets correctly for 6-dot displays; for 8-dot displays dots 7 and 8
-    will simply stay down because we don't set those bits.
+    ``writeDots``. Masks from the PWA preserve dots 1-8; six-dot displays
+    ignore unsupported dots at the device layer.
     """
 
     name: str = "brltty"

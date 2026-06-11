@@ -11,7 +11,10 @@
  *   2. As final results stream in, accumulate them and reset the idle timer.
  *   3. After IDLE_AFTER_FINAL_MS of silence post-final, stop and resolve
  *      with the joined transcript.
- *   4. If nothing final lands within OVERALL_TIMEOUT_MS, reject.
+ *   4. If the browser ends early with no speech, restart until the overall
+ *      listening window expires.
+ *   5. If nothing final lands within OVERALL_TIMEOUT_MS, fall back to the
+ *      latest interim transcript before rejecting.
  *
  * Each final result carries up to `maxAlternatives` candidates, so the
  * command matcher still gets multiple guesses for the *last* segment
@@ -25,11 +28,14 @@ export interface RecognitionResult {
   alternatives: string[];
 }
 
-const OVERALL_TIMEOUT_MS = 15000;
-// 2500 ms gives a natural speaking pause between words without cutting off
-// mid-phrase. The original 1400 ms was too short — "open … reader" would cut
-// after "open" if the user paused even slightly between words.
-const IDLE_AFTER_FINAL_MS = 2500;
+export const OVERALL_TIMEOUT_MS = 30000;
+// 4000 ms gives a natural pause for users who are locating keys, thinking
+// through a phrase, or speaking slowly. Shorter windows made voice nav feel
+// like it stopped listening before the command was finished.
+export const IDLE_AFTER_FINAL_MS = 4000;
+export const STOPPED_ERROR_MESSAGE = "Speech recognition stopped.";
+const RESTART_AFTER_EARLY_END_MS = 120;
+const MAX_EMPTY_RESTARTS = 6;
 const MAX_ALTERNATIVES = 5;
 const MAX_BUILT_ALTERNATIVES = 20;
 
@@ -83,6 +89,7 @@ class SpeechRecognitionEngine {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private recognition: any = null;
   private isListening = false;
+  private markStopRequested: (() => void) | null = null;
 
   get isSupported(): boolean {
     return (
@@ -105,15 +112,6 @@ class SpeechRecognitionEngine {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const SpeechRecognitionClass = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-      const rec = new SpeechRecognitionClass();
-      this.recognition = rec;
-
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.maxAlternatives = MAX_ALTERNATIVES;
-      rec.lang =
-        (typeof navigator !== "undefined" && navigator.language) || "en-US";
-
       let settled = false;
       // Track final segments across the session so a multi-word phrase like
       // "open the accessible reader" arrives whole instead of as fragments.
@@ -122,6 +120,19 @@ class SpeechRecognitionEngine {
       // full-phrase variants, not just the last word or last chunk.
       const finalSegmentAlternatives: string[][] = [];
       let idleTimer: number | null = null;
+      let restartTimer: number | null = null;
+      let latestInterim = "";
+      let emptyRestarts = 0;
+      let stoppingForTimeout = false;
+      let stopRequested = false;
+      // The browser can deliver late events from a previous recognizer after
+      // a restart. Keep cleanup scoped to the instance that is currently live.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let activeRecognition: any = null;
+      const startedAt = Date.now();
+      this.markStopRequested = () => {
+        stopRequested = true;
+      };
 
       const clearIdle = () => {
         if (idleTimer !== null) {
@@ -130,13 +141,31 @@ class SpeechRecognitionEngine {
         }
       };
 
+      const clearRestart = () => {
+        if (restartTimer !== null) {
+          window.clearTimeout(restartTimer);
+          restartTimer = null;
+        }
+      };
+
+      const canKeepListening = () =>
+        Date.now() - startedAt + RESTART_AFTER_EARLY_END_MS < OVERALL_TIMEOUT_MS &&
+        emptyRestarts < MAX_EMPTY_RESTARTS;
+
       const overallTimeout = window.setTimeout(() => {
         if (finalSegments.length > 0) {
           // Got something; close gracefully and resolve with what we have.
-          try { rec.stop(); } catch { /* already stopping */ }
+          try { this.recognition?.stop(); } catch { /* already stopping */ }
+        } else if (latestInterim) {
+          stoppingForTimeout = true;
+          const rec = this.recognition;
+          resolveWithInterim();
+          try { rec?.abort(); } catch { /* already stopped */ }
         } else {
+          stoppingForTimeout = true;
+          const rec = this.recognition;
           finish(() => reject(new Error("No speech detected. Try again.")));
-          try { rec.abort(); } catch { /* already aborted */ }
+          try { rec?.abort(); } catch { /* already aborted */ }
         }
       }, OVERALL_TIMEOUT_MS);
 
@@ -145,7 +174,12 @@ class SpeechRecognitionEngine {
         settled = true;
         window.clearTimeout(overallTimeout);
         clearIdle();
-        this.isListening = false;
+        clearRestart();
+        if (this.recognition === activeRecognition) {
+          this.recognition = null;
+          this.isListening = false;
+          this.markStopRequested = null;
+        }
         complete();
       };
 
@@ -162,73 +196,129 @@ class SpeechRecognitionEngine {
         finish(() => resolve({ transcript: joined, alternatives }));
       };
 
-      rec.onresult = (event: { resultIndex: number; results: SpeechRecognitionResultList }) => {
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (!result || result.length === 0) continue;
+      const resolveWithInterim = () => {
+        const transcript = latestInterim.trim().toLowerCase();
+        if (!transcript) {
+          finish(() => reject(new Error("No speech detected. Try again.")));
+          return;
+        }
+        finish(() => resolve({ transcript, alternatives: [transcript] }));
+      };
 
-          if (result.isFinal) {
-            const top = result[0]?.transcript?.trim();
-            if (top) {
-              const normalizedAlternatives = Array.from(
-                new Set(
-                  Array.from({ length: result.length }, (_, a) => result[a]?.transcript)
-                    .filter((value): value is string => Boolean(value && value.trim()))
-                    .map((value) => value.trim().toLowerCase())
-                )
-              );
+      const scheduleRestart = () => {
+        if (!canKeepListening()) return false;
+        emptyRestarts += 1;
+        clearRestart();
+        restartTimer = window.setTimeout(() => {
+          restartTimer = null;
+          if (!settled && !stopRequested) startRecognition();
+        }, RESTART_AFTER_EARLY_END_MS);
+        return true;
+      };
 
-              finalSegments.push(top.trim());
-              finalSegmentAlternatives.push(normalizedAlternatives);
+      const startRecognition = () => {
+        if (settled) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rec = new SpeechRecognitionClass();
+        activeRecognition = rec;
+        this.recognition = rec;
+
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = MAX_ALTERNATIVES;
+        rec.lang =
+          (typeof navigator !== "undefined" && navigator.language) || "en-US";
+
+        rec.onresult = (event: { resultIndex: number; results: SpeechRecognitionResultList }) => {
+          if (rec !== activeRecognition) return;
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            if (!result || result.length === 0) continue;
+
+            if (result.isFinal) {
+              const top = result[0]?.transcript?.trim();
+              if (top) {
+                const normalizedAlternatives = Array.from(
+                  new Set(
+                    Array.from({ length: result.length }, (_, a) => result[a]?.transcript)
+                      .filter((value): value is string => Boolean(value && value.trim()))
+                      .map((value) => value.trim().toLowerCase())
+                  )
+                );
+
+                finalSegments.push(top.trim());
+                finalSegmentAlternatives.push(normalizedAlternatives);
+                latestInterim = "";
+              }
+              // Restart the idle timer — caller is mid-thought, not necessarily done.
+              clearIdle();
+              idleTimer = window.setTimeout(() => {
+                try { rec.stop(); } catch { /* fall through to onend */ }
+              }, IDLE_AFTER_FINAL_MS);
+            } else {
+              const interim = result[0]?.transcript?.trim();
+              if (interim) latestInterim = interim;
+              // Interim text resets the idle timer too — the user is still talking,
+              // we just don't have a finalized chunk yet.
+              clearIdle();
             }
-            // Restart the idle timer — caller is mid-thought, not necessarily done.
-            clearIdle();
-            idleTimer = window.setTimeout(() => {
-              try { rec.stop(); } catch { /* fall through to onend */ }
-            }, IDLE_AFTER_FINAL_MS);
-          } else {
-            // Interim text resets the idle timer too — the user is still talking,
-            // we just don't have a finalized chunk yet.
-            clearIdle();
           }
+        };
+
+        rec.onerror = (event: { error: string }) => {
+          if (rec !== activeRecognition) return;
+          if (event.error === "no-speech") {
+            if (finalSegments.length > 0) {
+              resolveWithAccumulated();
+            } else if (latestInterim) {
+              resolveWithInterim();
+            }
+            return;
+          }
+          if (event.error === "not-allowed") {
+            finish(() => reject(new Error("Microphone access denied. Please grant permission.")));
+          } else if (event.error === "audio-capture") {
+            finish(() => reject(new Error("No microphone found. Please connect one and try again.")));
+          } else if (event.error === "network") {
+            finish(() => reject(new Error("Speech recognition needs a network connection.")));
+          } else if (event.error === "aborted") {
+            // We aborted on purpose (e.g. overall timeout). If we have results,
+            // resolve with them — otherwise let onend handle the empty case.
+            if (finalSegments.length > 0) resolveWithAccumulated();
+            else if (latestInterim) resolveWithInterim();
+          } else {
+            finish(() => reject(new Error(`Speech recognition error: ${event.error}`)));
+          }
+        };
+
+        rec.onend = () => {
+          if (settled || rec !== activeRecognition) return;
+          // End-of-session: resolve with whatever final segments we collected.
+          if (finalSegments.length > 0) {
+            resolveWithAccumulated();
+          } else if (latestInterim) {
+            resolveWithInterim();
+          } else if (stopRequested) {
+            finish(() => reject(new Error(STOPPED_ERROR_MESSAGE)));
+          } else if (!stoppingForTimeout && scheduleRestart()) {
+            // Browser ended early before the full listening window. Keep the
+            // microphone session alive so a slow speaker is not cut off.
+          } else {
+            finish(() => reject(new Error("I didn't hear you. Try again and speak after the chime.")));
+          }
+        };
+
+        this.isListening = true;
+        try {
+          rec.start();
+        } catch (err) {
+          finish(() =>
+            reject(err instanceof Error ? err : new Error("Could not start speech recognition."))
+          );
         }
       };
 
-      rec.onerror = (event: { error: string }) => {
-        if (event.error === "no-speech") {
-          finish(() => reject(new Error("I didn't hear you. Try again and speak right after the chime.")));
-        } else if (event.error === "not-allowed") {
-          finish(() => reject(new Error("Microphone access denied. Please grant permission.")));
-        } else if (event.error === "audio-capture") {
-          finish(() => reject(new Error("No microphone found. Please connect one and try again.")));
-        } else if (event.error === "network") {
-          finish(() => reject(new Error("Speech recognition needs a network connection.")));
-        } else if (event.error === "aborted") {
-          // We aborted on purpose (e.g. overall timeout). If we have results,
-          // resolve with them — otherwise let onend handle the empty case.
-          if (finalSegments.length > 0) resolveWithAccumulated();
-        } else {
-          finish(() => reject(new Error(`Speech recognition error: ${event.error}`)));
-        }
-      };
-
-      rec.onend = () => {
-        // End-of-session: resolve with whatever final segments we collected.
-        if (finalSegments.length > 0) {
-          resolveWithAccumulated();
-        } else {
-          finish(() => reject(new Error("I didn't hear you. Try again and speak right after the chime.")));
-        }
-      };
-
-      this.isListening = true;
-      try {
-        rec.start();
-      } catch (err) {
-        finish(() =>
-          reject(err instanceof Error ? err : new Error("Could not start speech recognition."))
-        );
-      }
+      startRecognition();
     });
   }
 
@@ -240,6 +330,7 @@ class SpeechRecognitionEngine {
 
   stop() {
     if (this.recognition) {
+      this.markStopRequested?.();
       try { this.recognition.abort(); } catch { /* already stopped */ }
       this.isListening = false;
     }

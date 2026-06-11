@@ -57,7 +57,7 @@ NUMBER_SIGN = 0b111100
 
 @dataclass(frozen=True)
 class BrailleCell:
-    """One braille cell represented as a six-dot bitmask."""
+    """One braille cell represented as an eight-dot bitmask."""
 
     mask: int
     source: str
@@ -65,11 +65,11 @@ class BrailleCell:
 
     @property
     def dots(self) -> list[int]:
-        return [dot for dot in range(1, 7) if self.mask & (1 << (dot - 1))]
+        return [dot for dot in range(1, 9) if self.mask & (1 << (dot - 1))]
 
     @property
     def unicode(self) -> str:
-        return chr(0x2800 + self.mask)
+        return chr(0x2800 + (self.mask & 0xFF))
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -111,4 +111,3 @@ def translate_grade1_debug(text: str) -> list[BrailleCell]:
         cells.append(BrailleCell(0, char, "unknown"))
 
     return cells
-

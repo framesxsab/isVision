@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { speechRecognition } from "@/core/speech/SpeechRecognition";
+import { STOPPED_ERROR_MESSAGE, speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
 import { resolveVoiceCommand } from "@/modules/voice-nav/commandRegistry";
@@ -53,7 +53,7 @@ export function VoiceFab() {
     setIsListening(true);
     speechEngine.stop();
     earcons.activate();
-    announce("Listening");
+    announce("Listening for up to thirty seconds");
 
     try {
       const result = await speechRecognition.listenWithAlternatives();
@@ -93,10 +93,17 @@ export function VoiceFab() {
       setIsListening(false);
       const message =
         err instanceof Error ? err.message : "Could not recognize speech.";
+      if (message === STOPPED_ERROR_MESSAGE) return;
       // Mic-denied messages are spoken so a blind user knows what to fix.
       speechEngine.interrupt(message, { remember: false });
     }
   }, [announce, navigate, location.pathname, supported]);
+
+  const handleStop = useCallback(() => {
+    speechRecognition.stop();
+    setIsListening(false);
+    announce("Stopped listening.");
+  }, [announce]);
 
   // Spacebar shortcut while focused — common AT convention for "activate".
   // We don't bind a global hotkey here; F6 already covers that.
@@ -121,11 +128,10 @@ export function VoiceFab() {
     >
       <button
         type="button"
-        onClick={handleClick}
-        disabled={isListening}
+        onClick={isListening ? handleStop : handleClick}
         aria-label={
           isListening
-            ? "Listening for your question or command. Press Escape to cancel."
+            ? "Stop listening."
             : "Ask isVisible. Tap to speak a command or question."
         }
         className={`

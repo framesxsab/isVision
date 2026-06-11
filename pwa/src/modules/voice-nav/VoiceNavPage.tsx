@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { speechRecognition } from "@/core/speech/SpeechRecognition";
+import { STOPPED_ERROR_MESSAGE, speechRecognition } from "@/core/speech/SpeechRecognition";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { earcons } from "@/core/audio/Earcons";
 import { commands, resolveVoiceCommand } from "./commandRegistry";
@@ -36,9 +36,9 @@ export default function VoiceNavPage() {
   const voiceConfirmAloud = useSettingsStore((s) => s.voiceConfirmAloud);
 
   useEffect(() => {
-    announce("Voice Navigation is ready. Press and hold the button to speak a command.");
+    announce("Voice Navigation is ready. Press the button and speak a command.");
     speechEngine.speak(
-      "Voice Navigation is ready. Press the large button and speak a command. Say help for a list of commands, or ask what is this for a description of the platform."
+      "Voice Navigation is ready. Press the large button and speak a command. I will listen for up to thirty seconds. Say help for a list of commands, or ask what is this for a description of the platform."
     );
   }, [announce]);
 
@@ -84,7 +84,7 @@ export default function VoiceNavPage() {
     setErrorMessage(null);
     speechEngine.stop();
     earcons.activate();
-    announce("Listening");
+    announce("Listening for up to thirty seconds");
 
     try {
       const result = await speechRecognition.listenWithAlternatives();
@@ -127,11 +127,18 @@ export default function VoiceNavPage() {
     } catch (err) {
       setIsListening(false);
       const msg = err instanceof Error ? err.message : "Could not recognize speech.";
+      if (msg === STOPPED_ERROR_MESSAGE) return;
       setErrorMessage(msg);
       if (isMicPermissionError(msg)) setSetupStatus({ microphone: "denied" });
       speechEngine.interrupt(msg);
     }
   }, [announce, executeAction, location.pathname, setSetupStatus, voiceConfirmAloud]);
+
+  const handleStopListening = useCallback(() => {
+    speechRecognition.stop();
+    setIsListening(false);
+    announce("Stopped listening.");
+  }, [announce]);
 
   const openSetup = useCallback(() => navigate("/onboarding?restart=1"), [navigate]);
   const dismissError = useCallback(() => setErrorMessage(null), []);
@@ -179,8 +186,7 @@ export default function VoiceNavPage() {
           <div className="flex flex-col items-center lg:items-start lg:w-64 shrink-0">
             {/* Big mic button */}
             <button
-              onClick={handleListen}
-              disabled={isListening}
+              onClick={isListening ? handleStopListening : handleListen}
               className={`
                 relative w-36 h-36 lg:w-40 lg:h-40
                 rounded-full flex items-center justify-center
@@ -193,7 +199,7 @@ export default function VoiceNavPage() {
                 }
               `}
               style={!isListening ? { boxShadow: "0 0 60px rgba(251,146,60,0.15)" } : undefined}
-              aria-label={isListening ? "Listening for your command. Speak now." : "Press to speak a command or question. You can also press F6 anywhere in the app."}
+              aria-label={isListening ? "Stop listening." : "Press to speak a command or question. You can also press F6 anywhere in the app."}
             >
               {isListening ? (
                 <IconEar className="w-14 h-14 text-rose-300" />
@@ -207,7 +213,7 @@ export default function VoiceNavPage() {
               aria-live="polite"
             >
               {isListening
-                ? "Listening… speak now"
+                ? "Listening... up to 30 seconds"
                 : lastTranscript
                   ? `You said: "${lastTranscript}"`
                   : "Tap the button and speak"}

@@ -68,7 +68,7 @@ describe("parseCompactProtocol", () => {
       "CFG hold_ms=900 blank=1",
       "F 0 0 3",
       "F 1 0 not-a-number",
-      "F 2 0 99",
+      "F 2 0 300",
       "END",
     ].join("\n");
 
@@ -103,5 +103,16 @@ describe("parseCompactProtocol", () => {
         expect.stringMatching(/Unknown CFG key/),
       ])
     );
+  });
+
+  it("preserves eight-dot masks for software and HID braille paths", () => {
+    const parsed = parseCompactProtocol(
+      ["CFG hold_ms=500 blank=0", "F 0 0 255", "END"].join("\n")
+    );
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.frames[0]?.cells[0]?.mask).toBe(255);
+    expect(parsed.frames[0]?.cells[0]?.dots).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(parsed.frames[0]?.cells[0]?.unicode).toBe(String.fromCharCode(0x28ff));
   });
 });

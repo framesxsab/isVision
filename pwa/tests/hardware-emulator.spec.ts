@@ -25,7 +25,7 @@ test("reports parse errors with the exact offending line numbers", async ({ page
     [
       "# header",
       "CFG hold_ms=900 blank=1",
-      "F 0 0 99",
+      "F 0 0 300",
       "WAT 1 2 3",
       "F 1 0 1",
       "END",

@@ -31,10 +31,11 @@ describe("brailleStringToCells", () => {
   });
 
   it("preserves dot ordering for cells with multiple dots set", () => {
-    // ⠿ = mask 0b111111 = all six dots → dots[] must list 1..6 in order so
-    // the firmware-side protocol stays deterministic.
-    const cells = brailleStringToCells("⠿");
-    expect(cells[0]?.dots).toEqual([1, 2, 3, 4, 5, 6]);
+    // U+28FF = mask 0b11111111 = all eight dots. Software/HID paths must
+    // keep dots 7 and 8 even when a six-dot serial device later ignores them.
+    const cells = brailleStringToCells(String.fromCharCode(0x28ff));
+    expect(cells[0]?.mask).toBe(255);
+    expect(cells[0]?.dots).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("returns an empty array for empty input", () => {

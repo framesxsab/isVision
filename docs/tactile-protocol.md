@@ -24,7 +24,7 @@ END
 Commands:
 
 - `CFG hold_ms=<number> blank=<0|1>` sets firmware playback behavior. The Arduino prototype accepts `hold_ms` from `100` through `5000`.
-- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is a six-dot braille bitmask in the range `0..63`.
+- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is an eight-dot braille bitmask in the range `0..255`. Six-dot prototypes drive dots 1-6 and ignore dots 7-8.
 - `B` blanks all pins.
 - `END` marks the end of a batch and blanks pins.
 - Lines beginning with `#` are comments.
@@ -35,7 +35,7 @@ The first single-cell Arduino firmware has a small serial command queue. Hosts s
 
 ## Dot Mask
 
-Six-dot braille uses bits 0 through 5:
+Braille masks use bits 0 through 7:
 
 ```text
 dot 1 = 1
@@ -44,6 +44,8 @@ dot 3 = 4
 dot 4 = 8
 dot 5 = 16
 dot 6 = 32
+dot 7 = 64
+dot 8 = 128
 ```
 
 Examples:
@@ -52,6 +54,7 @@ Examples:
 - `3` means dots 1 and 2.
 - `32` means dot 6.
 - `60` means dots 3, 4, 5, and 6.
+- `255` means all eight dots.
 
 ## JSON Lines
 

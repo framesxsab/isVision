@@ -302,7 +302,7 @@ function Cell({ cell }: { cell: BrailleCell | null }) {
       className="grid grid-cols-2 gap-1 p-2 rounded-lg bg-surface-2 border border-surface-border"
       aria-hidden="true"
     >
-      {[1, 4, 2, 5, 3, 6].map((dot) => (
+      {[1, 4, 2, 5, 3, 6, 7, 8].map((dot) => (
         <span
           key={dot}
           className={`w-4 h-4 rounded-full border ${

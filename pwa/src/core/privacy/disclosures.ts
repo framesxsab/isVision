@@ -77,7 +77,7 @@ export const DISCLOSURES: Disclosure[] = [
     scope: "third-party",
     summary: "Audio is sent to your browser's speech service while listening.",
     detail:
-      "When you activate voice commands, the Web Speech API streams audio to a recognition service (in Chrome this is Google's). The resulting transcript is then sent to our server only to match it against the command list. Recognition stops as soon as you stop talking.",
+      "When you activate voice commands, the Web Speech API streams audio to a recognition service (in Chrome this is Google's). The resulting transcript is then sent to our server only to match it against the command list. Recognition stops when speech is captured or after the thirty-second listening window expires.",
   },
   {
     id: "ai-vision",

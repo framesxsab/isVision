@@ -19,6 +19,19 @@ describe("cellsToReport", () => {
     expect(Array.from(report)).toEqual([1, 3]);
   });
 
+  it("preserves eight-dot masks for HID braille displays", () => {
+    const report = cellsToReport([
+      {
+        mask: 0xff,
+        source: "",
+        role: "content",
+        dots: [1, 2, 3, 4, 5, 6, 7, 8],
+        unicode: "",
+      },
+    ]);
+    expect(Array.from(report)).toEqual([255]);
+  });
+
   it("truncates oversize cell arrays to MAX_HID_CELLS", () => {
     const oversize = Array.from({ length: MAX_HID_CELLS + 5 }, () => ({
       mask: 0xff,
