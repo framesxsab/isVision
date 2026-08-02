@@ -35,8 +35,20 @@ export interface ResolveVoiceCommandOptions {
   aiTimeoutMs?: number;
   intentResolver?: (
     transcript: string,
-    availableCommands: string[]
+    availableCommands: string[],
+    context: {
+      alternatives: string[];
+      commandCatalog: CommandIntentCatalogItem[];
+    }
   ) => Promise<{ command: string | null; confidence: number }>;
+}
+
+export interface CommandIntentCatalogItem {
+  name: string;
+  description: string;
+  module: string;
+  action: string;
+  patterns: string[];
 }
 
 export const commands: Command[] = [
@@ -120,6 +132,8 @@ export const commands: Command[] = [
     patterns: [
       "camera", "vision", "open camera", "ai vision",
       "open ai vision", "use camera", "open vision", "start camera",
+      "what is in front of me", "see what is in front of me",
+      "tell me what the camera sees", "look around",
     ],
     description: "Open AI Vision",
     module: "ai-vision",
@@ -143,7 +157,9 @@ export const commands: Command[] = [
     patterns: [
       "reader", "open reader", "accessible reader",
       "open article", "read an article", "start reading", "open the reader",
-      "article reader", "go to reader",
+      "article reader", "go to reader", "read a website", "read a web page",
+      "read this website", "read this page", "read something online",
+      "help me read an article",
     ],
     description: "Open Accessible Reader",
     module: "reader",
@@ -216,6 +232,7 @@ export const commands: Command[] = [
     patterns: [
       "tactile output", "braille lab", "tactile lab", "open braille",
       "open tactile", "braille output", "open tactile output",
+      "convert text to braille", "turn text into braille", "send braille",
     ],
     description: "Open Tactile Output Lab",
     module: "tactile-output",
@@ -235,7 +252,8 @@ export const commands: Command[] = [
     name: "open_tactile_drill",
     patterns: [
       "tactile drill", "drill", "practice braille", "braille drill", "open drill",
-      "braille practice", "practice", "start drill",
+      "braille practice", "practice", "start drill", "teach me braille",
+      "help me practice braille", "learn braille",
     ],
     description: "Open Tactile Drill",
     module: "tactile-output",
@@ -307,6 +325,16 @@ export function normalizeTranscript(raw: string): string {
 const patternIndex = commands
   .flatMap((cmd) => cmd.patterns.map((pattern) => ({ cmd, pattern })))
   .sort((a, b) => b.pattern.length - a.pattern.length);
+
+function buildCommandCatalog(): CommandIntentCatalogItem[] {
+  return commands.map(({ name, description, module, action, patterns }) => ({
+    name,
+    description,
+    module,
+    action,
+    patterns,
+  }));
+}
 
 /**
  * Word-coverage score: how many of the pattern's significant words appear
@@ -388,12 +416,19 @@ export async function resolveVoiceCommand(
 
   const intentResolver =
     options.intentResolver ??
-    ((input: string, knownCommands: string[]) => parseIntent(input, knownCommands));
+    ((input: string, knownCommands: string[], context) =>
+      parseIntent(input, knownCommands, {
+        alternatives: context.alternatives,
+        commandCatalog: context.commandCatalog,
+      }));
 
   let aiMatch: { command: string | null; confidence: number };
   try {
     aiMatch = await withTimeout(
-      intentResolver(transcript, availableCommands),
+      intentResolver(transcript, availableCommands, {
+        alternatives,
+        commandCatalog: buildCommandCatalog(),
+      }),
       options.aiTimeoutMs ?? 2000
     );
   } catch {
@@ -423,11 +458,13 @@ export function matchCommand(
 
   // Step 1 & 2 — Exact and substring matches (highest confidence)
   for (const { cmd, pattern } of patternIndex) {
-    if (input === pattern) {
+    const normalizedPattern = normalizeTranscript(pattern);
+    if (!normalizedPattern) continue;
+    if (input === normalizedPattern) {
       return { command: cmd, confidence: 1.0 };
     }
     const boundaryRegex = new RegExp(
-      `(^|\\s)${escapeRegex(pattern)}($|\\s)`
+      `(^|\\s)${escapeRegex(normalizedPattern)}($|\\s)`
     );
     if (boundaryRegex.test(input)) {
       return { command: cmd, confidence: 0.95 };

@@ -1,6 +1,13 @@
 import http from "node:http";
 import dns from "node:dns/promises";
 import { isIP } from "node:net";
+import {
+  buildIntentAllowedNames,
+  buildIntentSystemPrompt,
+  buildIntentUserPrompt,
+  parseIntentModelResult,
+  sanitizeIntentCatalog,
+} from "../functions/_shared/intent.js";
 
 // One JSON line per event so logs are grep-able and ingestable by any log
 // aggregator (Cloud Run, Datadog, Loki, etc.). Levels follow the standard
@@ -255,29 +262,26 @@ async function parseIntent(req, res, origin) {
     return;
   }
 
-  const { transcript, availableCommands } = await readJson(req);
+  const { transcript, availableCommands, alternatives, commandCatalog } = await readJson(req);
   if (typeof transcript !== "string" || !Array.isArray(availableCommands)) {
     sendJson(res, 400, { error: "transcript and availableCommands are required." }, origin);
     return;
   }
 
-  const systemPrompt = `Map the user's voice command to one of these available commands: ${availableCommands.join(", ")}. Return ONLY valid JSON: {"command": "matched_command_or_null", "confidence": 0.0_to_1.0}. If no match, return {"command": null, "confidence": 0}.`;
+  const catalog = sanitizeIntentCatalog(commandCatalog, availableCommands);
+  const allowedNames = buildIntentAllowedNames(catalog, availableCommands);
 
   const result = await callNvidiaAPI(
     process.env.NVIDIA_INTENT_MODEL ?? "meta/llama-3.1-8b-instruct",
     [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: transcript },
+      { role: "system", content: buildIntentSystemPrompt(catalog, availableCommands) },
+      { role: "user", content: buildIntentUserPrompt(transcript, alternatives) },
     ],
     apiKey,
     100
   );
 
-  try {
-    sendJson(res, 200, JSON.parse(result), origin);
-  } catch {
-    sendJson(res, 200, { command: null, confidence: 0 }, origin);
-  }
+  sendJson(res, 200, parseIntentModelResult(result, allowedNames), origin);
 }
 
 // --- SSRF-safe URL fetcher (used by /api/reader/fetch) -----------------------

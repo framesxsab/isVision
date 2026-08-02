@@ -1,4 +1,11 @@
 import { callNvidia } from "../../_shared/nvidia.js";
+import {
+  buildIntentAllowedNames,
+  buildIntentSystemPrompt,
+  buildIntentUserPrompt,
+  parseIntentModelResult,
+  sanitizeIntentCatalog,
+} from "../../_shared/intent.js";
 
 export async function onRequestPost({ request, env }) {
   const apiKey = env.NVIDIA_API_KEY;
@@ -14,7 +21,7 @@ export async function onRequestPost({ request, env }) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { transcript, availableCommands } = body ?? {};
+  const { transcript, availableCommands, alternatives, commandCatalog } = body ?? {};
   if (typeof transcript !== "string" || !Array.isArray(availableCommands)) {
     return Response.json(
       { error: "transcript and availableCommands are required." },
@@ -22,23 +29,20 @@ export async function onRequestPost({ request, env }) {
     );
   }
 
-  const systemPrompt = `Map the user's voice command to one of these available commands: ${availableCommands.join(", ")}. Return ONLY valid JSON: {"command": "matched_command_or_null", "confidence": 0.0_to_1.0}. If no match, return {"command": null, "confidence": 0}.`;
+  const catalog = sanitizeIntentCatalog(commandCatalog, availableCommands);
+  const allowedNames = buildIntentAllowedNames(catalog, availableCommands);
 
   try {
     const result = await callNvidia(
       apiKey,
       env.NVIDIA_INTENT_MODEL ?? "meta/llama-3.1-8b-instruct",
       [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: transcript },
+        { role: "system", content: buildIntentSystemPrompt(catalog, availableCommands) },
+        { role: "user", content: buildIntentUserPrompt(transcript, alternatives) },
       ],
       100,
     );
-    try {
-      return Response.json(JSON.parse(result));
-    } catch {
-      return Response.json({ command: null, confidence: 0 });
-    }
+    return Response.json(parseIntentModelResult(result, allowedNames));
   } catch {
     return Response.json({ command: null, confidence: 0 });
   }

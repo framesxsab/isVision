@@ -20,6 +20,14 @@ interface IntentResponse {
   error?: string;
 }
 
+export interface IntentCommandCatalogItem {
+  name: string;
+  description: string;
+  module: string;
+  action: string;
+  patterns: string[];
+}
+
 export async function describeImage(
   base64Image: string,
   context?: string,
@@ -45,12 +53,21 @@ export async function describeImage(
 
 export async function parseIntent(
   transcript: string,
-  availableCommands: string[]
+  availableCommands: string[],
+  options: {
+    alternatives?: string[];
+    commandCatalog?: IntentCommandCatalogItem[];
+  } = {}
 ): Promise<{ command: string | null; confidence: number }> {
   const response = await fetch(API_INTENT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript, availableCommands }),
+    body: JSON.stringify({
+      transcript,
+      availableCommands,
+      alternatives: options.alternatives,
+      commandCatalog: options.commandCatalog,
+    }),
   });
 
   if (!response.ok) return { command: null, confidence: 0 };

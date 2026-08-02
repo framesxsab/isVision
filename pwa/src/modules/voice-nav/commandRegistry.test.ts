@@ -74,6 +74,13 @@ describe("matchCommand", () => {
     expect(result?.command.action).toBe("navigate_voice_nav");
   });
 
+  it("matches natural outcome phrases without needing the AI fallback", () => {
+    expect(matchCommand("can you read a website for me")?.command.name).toBe("open_reader");
+    expect(matchCommand("tell me what the camera sees")?.command.name).toBe("open_vision");
+    expect(matchCommand("help me practice braille")?.command.name).toBe("open_tactile_drill");
+    expect(matchCommand("turn text into braille")?.command.name).toBe("open_tactile_output");
+  });
+
   it("matches explicit tactile drill controls without stealing generic reader commands", () => {
     expect(matchCommand("next prompt")?.command.name).toBe("drill_next");
     expect(matchCommand("repeat prompt")?.command.name).toBe("drill_repeat");
@@ -142,6 +149,26 @@ describe("resolveVoiceCommand", () => {
     expect(result?.source).toBe("ai");
   });
 
+  it("sends speech alternatives and command metadata to the AI fallback", async () => {
+    const seenContext: {
+      current: { alternatives: string[]; commandCatalog: Array<{ name: string }> } | null;
+    } = { current: null };
+
+    const result = await resolveVoiceCommand(["newspaper helper", "read a web article"], {
+      minLocalConfidence: 0.95,
+      intentResolver: async (_transcript, _availableCommands, context) => {
+        seenContext.current = context;
+        return { command: "open_reader", confidence: 0.91 };
+      },
+    });
+
+    expect(result?.command.name).toBe("open_reader");
+    expect(seenContext.current).not.toBeNull();
+    const context = seenContext.current as { alternatives: string[]; commandCatalog: Array<{ name: string }> };
+    expect(context.alternatives).toEqual(["newspaper helper", "read a web article"]);
+    expect(context.commandCatalog.some((command) => command.name === "open_reader")).toBe(true);
+  });
+
   it("keeps the local match when it is already strong enough", async () => {
     const result = await resolveVoiceCommand(["open reader"], {
       minLocalConfidence: 0.75,
@@ -163,6 +190,17 @@ describe("resolveVoiceCommand", () => {
 
     expect(result?.command.name).toBe("open_tactile_drill");
     expect(result?.source).toBe("local");
+  });
+
+  it("returns null instead of hanging when the AI resolver times out", async () => {
+    const result = await resolveVoiceCommand(["start the newspaper thing"], {
+      minLocalConfidence: 0.95,
+      aiTimeoutMs: 25,
+      // Never settles — the timeout must reject and fall through.
+      intentResolver: () => new Promise<{ command: string | null; confidence: number }>(() => {}),
+    });
+
+    expect(result).toBeNull();
   });
 
   it("accepts AI responses that use an allowed command pattern", async () => {
