@@ -109,6 +109,11 @@ describe("tactileStore", () => {
     expect(useTactileStore.getState().language).toBe("en-g2");
   });
 
+  it("rejects en-g1 since the UI exposes only Grade 1 debug + Grade 2 Liblouis", () => {
+    useTactileStore.getState().setLanguage("en-g1" as never);
+    expect(useTactileStore.getState().language).toBe("en-g2");
+  });
+
   it("only accepts group sizes that the UI exposes", () => {
     useTactileStore.getState().setGroupSize(3);
     expect(useTactileStore.getState().groupSize).toBe(1);

@@ -59,6 +59,11 @@ class SpeechEngineImpl {
   private onEvent: SpeechEventHandler | null = null;
   private initialized = false;
   private lastSpokenText: string | null = null;
+  // True while a deliberate cancel (stop() / interrupt() / user-priority
+  // speak) is in flight. Lets onerror tell "the browser stole audio mid-
+  // utterance" apart from "the user told us to stop", so we don't advance
+  // callers on the latter.
+  private aborting = false;
 
   init() {
     if (this.initialized) return;
@@ -113,6 +118,7 @@ class SpeechEngineImpl {
     }
 
     if (options?.priority === "user") {
+      this.aborting = true;
       this.synth.cancel();
       this.queue = [];
       this.isSpeaking = false;
@@ -154,6 +160,7 @@ class SpeechEngineImpl {
   /** Stop all speech and clear the queue. */
   stop() {
     if (!this.synth) return;
+    this.aborting = true;
     this.synth.cancel();
     this.queue = [];
     this.isSpeaking = false;
@@ -181,6 +188,9 @@ class SpeechEngineImpl {
     }
 
     this.isSpeaking = true;
+    // A stale abort flag (from a cancel whose onerror never surfaced) must
+    // not swallow the error path of the next utterance we actually start.
+    this.aborting = false;
     const item = this.queue.shift()!;
     const utterance = new SpeechSynthesisUtterance(item.text);
 
@@ -209,13 +219,28 @@ class SpeechEngineImpl {
     };
 
     utterance.onerror = (e) => {
-      // "interrupted" is normal when we call cancel()
+      // "interrupted" is normal when we call cancel(). We distinguish a
+      // deliberate cancel (stop()/interrupt()/user-priority speak set the
+      // `aborting` flag) from a browser-initiated interruption so a user
+      // stop never advances callers, but a browser steal doesn't strand the
+      // rest of the queue.
+      if (this.aborting) {
+        this.aborting = false;
+        this.isSpeaking = false;
+        this.onEvent?.("end");
+        return;
+      }
       if (e.error !== "interrupted") {
         console.error("Speech error:", e.error);
         item.onError?.();
         this.onEvent?.("error");
       }
-      this.isSpeaking = false;
+      // A browser interruption/error on the final chunk still counts as
+      // "done" — callers like the Reader advance on onEnd, so firing it here
+      // prevents a silent mid-article stall. onend and onerror are mutually
+      // exclusive per utterance, so this can't double-fire.
+      if (item.final) item.onEnd?.();
+      this.processQueue();
     };
 
     this.synth.speak(utterance);

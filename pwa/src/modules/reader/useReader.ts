@@ -9,6 +9,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { cleanContent, splitIntoChunks } from "./contentCleaner";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
+import { detectSpeechSynthesis } from "@/core/utils/capabilities";
 
 // Per-URL paragraph position is kept in sessionStorage — survives an
 // accidental refresh during a study session, but clears at tab close so
@@ -185,8 +186,18 @@ export function useReader() {
         chunkIndexRef.current++;
         readCurrentChunk();
       },
+      // A real synthesis failure (not a user cancel — the engine filters
+      // those out) must not leave the reader in a phantom "reading" state.
+      // Stop cleanly and tell the user, rather than hanging silently.
+      onError: () => {
+        if (!readingRef.current) return;
+        readingRef.current = false;
+        speechEngine.stop();
+        setState((s) => ({ ...s, isReading: false, isPaused: true }));
+        announce("Reading stopped because speech failed.");
+      },
     });
-  }, [persistPosition]);
+  }, [announce, persistPosition]);
 
   // Start/resume reading
   const play = useCallback(() => {
@@ -195,10 +206,19 @@ export function useReader() {
       return;
     }
 
+    if (!detectSpeechSynthesis().available) {
+      readingRef.current = false;
+      setState((s) => ({ ...s, isReading: false, isPaused: true }));
+      announce(
+        "Speech is not available in this browser. Use the paragraph buttons to move through the article."
+      );
+      return;
+    }
+
     readingRef.current = true;
     setState((s) => ({ ...s, isReading: true, isPaused: false }));
     readCurrentChunk();
-  }, [readCurrentChunk]);
+  }, [announce, readCurrentChunk]);
 
   // Pause reading
   const pause = useCallback(() => {

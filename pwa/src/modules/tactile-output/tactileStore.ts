@@ -72,7 +72,11 @@ const HOLD_MS_MIN = 100;
 const HOLD_MS_MAX = 5000;
 const VALID_GROUP_SIZES = new Set([1, 4, 8]);
 const VALID_TRANSLATOR_MODES = new Set<TranslatorMode>(["g1", "g2"]);
-const VALID_LANGUAGES = new Set<LiblouisTableId>(["en-g2", "en-g1", "fr-g2", "de-g2"]);
+// Matches the Liblouis languages the UI actually exposes (TactileOutputPage
+// LANGUAGE_OPTIONS). "en-g1" is intentionally absent: Grade 1 is the bundled
+// in-process debug mapping, and exposing a Liblouis Grade 1 row here would
+// leave the store able to hold a value the UI can't select or recover from.
+const VALID_LANGUAGES = new Set<LiblouisTableId>(["en-g2", "fr-g2", "de-g2"]);
 const VALID_OUTPUT_FORMATS = new Set<OutputFormat>(["compact", "json"]);
 const VALID_DRILL_MODES = new Set<DrillMode>([
   "letter",
@@ -108,6 +112,12 @@ function migratePersistedState(persistedState: unknown, version: number): Partia
       persistImportedText && typeof state.lastImportSource === "string"
         ? state.lastImportSource
         : "",
+    // v3 → v4: remap any persisted "en-g1" (a value older builds could hold
+    // but the UI never exposed) onto English UEB so no stored payload can
+    // rehydrate into a language with no radio selected.
+    language: VALID_LANGUAGES.has(state.language as LiblouisTableId)
+      ? state.language
+      : "en-g2",
   };
 }
 
@@ -165,7 +175,7 @@ export const useTactileStore = create<TactileState>()(
     }),
     {
       name: TACTILE_STORE_KEY,
-      version: 3,
+      version: 4,
       migrate: migratePersistedState,
       partialize: (state) => ({
         ...state,

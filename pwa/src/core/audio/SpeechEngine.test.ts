@@ -235,6 +235,85 @@ describe("SpeechEngine", () => {
     expect(handler).not.toHaveBeenCalledWith("end");
   });
 
+  it("a browser interruption advances the queue instead of stalling it", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+
+    engine.speak("first");
+    engine.speak("second"); // queued behind "first"
+
+    expect(synth.speak).toHaveBeenCalledTimes(1);
+
+    // Simulate the browser stealing audio mid-utterance (no deliberate stop).
+    getUtterance(synth, 0).onerror?.({ error: "interrupted" });
+
+    expect(synth.speak).toHaveBeenCalledTimes(2);
+    expect(getUtterance(synth, 1).text).toBe("second");
+  });
+
+  it("an error on the final chunk still fires the onEnd callback", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const onEnd = vi.fn();
+    const onError = vi.fn();
+
+    engine.speak("hello", { onEnd, onError });
+
+    getUtterance(synth, 0).onerror?.({ error: "synthesis-failed" });
+
+    // Callers that advance on onEnd (e.g. the Reader) must not hang forever.
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(engine.speaking).toBe(false);
+  });
+
+  it("a deliberate stop() does not fire onEnd or onError for a later interrupted event", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const onEnd = vi.fn();
+    const onError = vi.fn();
+
+    engine.speak("hello", { onEnd, onError });
+    engine.stop();
+
+    // Late "interrupted" from the cancel must not advance the caller.
+    getUtterance(synth, 0).onerror?.({ error: "interrupted" });
+
+    expect(onEnd).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("an error on a non-final chunk skips ahead without firing onEnd early", () => {
+    const synth = makeSynth();
+    stubSpeech(synth);
+    const engine = createSpeechEngineForTest();
+    const onEnd = vi.fn();
+    const longText = (
+      "First sentence is moderately long. " +
+      "Second sentence is also moderately long. " +
+      "Third sentence finishes the paragraph nicely. "
+    ).repeat(3);
+
+    engine.speak(longText, { onEnd });
+
+    // Error the first chunk; the queue must keep pumping to the final one.
+    getUtterance(synth, 0).onerror?.({ error: "interrupted" });
+
+    expect(synth.speak.mock.calls.length).toBeGreaterThan(1);
+    expect(onEnd).not.toHaveBeenCalled();
+
+    while (synth.speak.mock.calls.length > onEnd.mock.calls.length + 1) {
+      const lastIndex = synth.speak.mock.calls.length - 1;
+      getUtterance(synth, lastIndex).onend?.();
+      if (onEnd.mock.calls.length > 0) break;
+    }
+
+    expect(onEnd).toHaveBeenCalledTimes(1);
+  });
+
   it("is a no-op when speechSynthesis is missing", () => {
     vi.stubGlobal("window", {});
     vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
