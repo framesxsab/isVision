@@ -50,7 +50,7 @@ export function UpdateBanner() {
       <div className="flex gap-2">
         <button
           onClick={apply}
-          className="min-h-touch px-3 py-1 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary-300"
+          className="min-h-touch px-3 py-1 rounded-lg bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary-300"
         >
           Update
         </button>

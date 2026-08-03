@@ -283,19 +283,24 @@ function CapabilityRow({ row }: { row: Row }) {
               {row.report.suggestion}
             </p>
           )}
-          {row.cta && (
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={row.cta.onClick}
-                className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
-              >
-                {row.cta.label}
-              </button>
-            </div>
-          )}
         </div>
       </div>
+      {row.cta && (
+        // The button must stay OUTSIDE the aria-hidden wrapper above —
+        // hiding a focusable control from assistive tech strands keyboard
+        // and screen-reader users (axe: aria-hidden-focus). The row label
+        // already announced the problem; this is the fix action.
+        <div className="mt-3 pl-[22px]">
+          <button
+            type="button"
+            onClick={row.cta.onClick}
+            aria-label={`${row.cta.label} for ${row.label}`}
+            className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
+          >
+            {row.cta.label}
+          </button>
+        </div>
+      )}
     </li>
   );
 }

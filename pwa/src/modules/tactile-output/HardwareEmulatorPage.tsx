@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/Button";
 import { IconArrowLeft } from "@/components/Icons";
+import { toggleActive, toggleInactive } from "@/components/PageShell";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import {
   parseCompactProtocol,
@@ -193,10 +194,8 @@ export default function HardwareEmulatorPage() {
                 type="button"
                 aria-pressed={cellWidth === w}
                 onClick={() => setCellWidth(w)}
-                className={`min-h-touch px-4 py-2 rounded-lg text-sm font-medium border focus-visible:ring-2 focus-visible:ring-primary-400 ${
-                  cellWidth === w
-                    ? "bg-primary-600 border-primary-400 text-white"
-                    : "bg-surface-2 border-surface-border text-stone-100 hover:bg-surface-3"
+                className={`px-4 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 ${
+                  cellWidth === w ? toggleActive : toggleInactive
                 }`}
               >
                 {w}-cell
@@ -211,10 +210,8 @@ export default function HardwareEmulatorPage() {
                 type="button"
                 aria-pressed={speed === s}
                 onClick={() => setSpeed(s)}
-                className={`min-h-touch px-3 py-2 rounded-lg text-sm font-medium border focus-visible:ring-2 focus-visible:ring-primary-400 ${
-                  speed === s
-                    ? "bg-primary-600 border-primary-400 text-white"
-                    : "bg-surface-2 border-surface-border text-stone-100 hover:bg-surface-3"
+                className={`px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 ${
+                  speed === s ? toggleActive : toggleInactive
                 }`}
               >
                 {s}x
