@@ -5,6 +5,7 @@ import {
   accuracyPercent,
   historyToCsv,
   nextPrompt,
+  perSpeechModeStats,
   recordAttempt,
   scoreAttempt,
   spokenAnswer,
@@ -225,5 +226,109 @@ describe("spokenAnswer", () => {
 
   it("returns the answer unchanged for non-punctuation prompts", () => {
     expect(spokenAnswer({ answer: "cat", kind: "short word" })).toBe("cat");
+  });
+});
+
+describe("perSpeechModeStats", () => {
+  it("groups attempts by speech mode with accuracy and average response time", () => {
+    const stats = perSpeechModeStats([
+      {
+        answer: "cat",
+        kind: "short word",
+        guess: "cat",
+        correct: true,
+        at: 0,
+        speechMode: "speech",
+        responseTimeMs: 1200,
+      },
+      {
+        answer: "dog",
+        kind: "short word",
+        guess: "dog",
+        correct: true,
+        at: 1000,
+        speechMode: "speech",
+        responseTimeMs: 1800,
+      },
+      {
+        answer: "5",
+        kind: "number",
+        guess: "6",
+        correct: false,
+        at: 2000,
+        speechMode: "speech+tactile",
+        responseTimeMs: 2500,
+      },
+    ]);
+    expect(stats).toEqual([
+      {
+        speechMode: "speech+tactile",
+        attempts: 1,
+        correct: 0,
+        accuracyPercent: 0,
+        avgResponseTimeMs: 2500,
+      },
+      {
+        speechMode: "speech",
+        attempts: 2,
+        correct: 2,
+        accuracyPercent: 100,
+        avgResponseTimeMs: 1500,
+      },
+    ]);
+  });
+
+  it("sorts by ascending accuracy so the weaker mode surfaces first", () => {
+    const stats = perSpeechModeStats([
+      {
+        answer: "a",
+        kind: "single letter",
+        guess: "a",
+        correct: true,
+        at: 0,
+        speechMode: "speech",
+      },
+      {
+        answer: "b",
+        kind: "single letter",
+        guess: "b",
+        correct: true,
+        at: 1,
+        speechMode: "speech+tactile",
+      },
+      {
+        answer: "c",
+        kind: "single letter",
+        guess: "x",
+        correct: false,
+        at: 2,
+        speechMode: "speech",
+      },
+    ]);
+    expect(stats.map((s) => s.speechMode)).toEqual(["speech", "speech+tactile"]);
+  });
+
+  it("ignores attempts without a speech mode and returns an empty list for an empty history", () => {
+    expect(perSpeechModeStats([])).toEqual([]);
+    expect(
+      perSpeechModeStats([
+        { answer: "a", kind: "single letter", guess: "a", correct: true, at: 0 },
+      ])
+    ).toEqual([]);
+  });
+
+  it("leaves avgResponseTimeMs null when no attempt recorded a response time", () => {
+    const stats = perSpeechModeStats([
+      {
+        answer: "a",
+        kind: "single letter",
+        guess: "a",
+        correct: true,
+        at: 0,
+        speechMode: "speech+tactile",
+      },
+    ]);
+    expect(stats[0]?.avgResponseTimeMs).toBeNull();
+    expect(stats[0]?.accuracyPercent).toBe(100);
   });
 });

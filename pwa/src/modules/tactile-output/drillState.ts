@@ -270,6 +270,55 @@ export function nextMistakePrompt(
   return { answer: choice.answer, kind: choice.kind };
 }
 
+// Fold the history by speech mode so a learner can see whether adding
+// tactile output changed accuracy or speed. Only modes that actually have
+// attempts appear; rows sort by accuracy so the weaker reading mode shows
+// first. Every attempt already records speechMode, so no new persistence is
+// needed — this is pure aggregation on the existing history.
+export interface SpeechModeStats {
+  speechMode: string;
+  attempts: number;
+  correct: number;
+  accuracyPercent: number;
+  // Average response time across attempts that recorded one; null when none
+  // of the attempts in this mode have a response time.
+  avgResponseTimeMs: number | null;
+}
+
+export function perSpeechModeStats(history: readonly DrillAttempt[]): SpeechModeStats[] {
+  const byMode = new Map<string, { attempts: number; correct: number; responseSum: number; responseCount: number }>();
+  for (const attempt of history) {
+    if (!attempt.speechMode) continue;
+    const existing = byMode.get(attempt.speechMode);
+    const responseTime = typeof attempt.responseTimeMs === "number" ? attempt.responseTimeMs : null;
+    if (existing) {
+      existing.attempts += 1;
+      existing.correct += attempt.correct ? 1 : 0;
+      if (responseTime !== null) {
+        existing.responseSum += responseTime;
+        existing.responseCount += 1;
+      }
+    } else {
+      byMode.set(attempt.speechMode, {
+        attempts: 1,
+        correct: attempt.correct ? 1 : 0,
+        responseSum: responseTime ?? 0,
+        responseCount: responseTime === null ? 0 : 1,
+      });
+    }
+  }
+  return [...byMode.entries()]
+    .map(([speechMode, stats]) => ({
+      speechMode,
+      attempts: stats.attempts,
+      correct: stats.correct,
+      accuracyPercent: Math.round((stats.correct / stats.attempts) * 100),
+      avgResponseTimeMs:
+        stats.responseCount > 0 ? Math.round(stats.responseSum / stats.responseCount) : null,
+    }))
+    .sort((a, b) => a.accuracyPercent - b.accuracyPercent);
+}
+
 // Extended CSV: same per-attempt rows, then a blank line, then a per-answer
 // summary block. A spreadsheet importer treats the second block as a new
 // table; for a quick `cat` of the file the learner sees both views.
@@ -291,5 +340,20 @@ export function historyToCsvWithSummary(history: readonly DrillAttempt[]): strin
       String(Math.round((s.correct / s.attempts) * 100)),
     ].join(",")
   );
-  return [head, "", summaryHeader, ...summaryRows].join("\n");
+  const parts = [head, "", summaryHeader, ...summaryRows];
+  const modes = perSpeechModeStats(history);
+  if (modes.length >= 2) {
+    const modeHeader = "speech_mode,attempts,correct,accuracy_percent,avg_response_time_ms";
+    const modeRows = modes.map((m) =>
+      [
+        csvEscape(m.speechMode),
+        String(m.attempts),
+        String(m.correct),
+        String(m.accuracyPercent),
+        m.avgResponseTimeMs === null ? "" : String(m.avgResponseTimeMs),
+      ].join(",")
+    );
+    parts.push("", modeHeader, ...modeRows);
+  }
+  return parts.join("\n");
 }

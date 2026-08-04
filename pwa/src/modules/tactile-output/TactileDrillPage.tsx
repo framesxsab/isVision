@@ -24,6 +24,7 @@ import {
   mistakePool,
   nextMistakePrompt,
   nextPrompt,
+  perSpeechModeStats,
   scoreAttempt,
   spokenAnswer,
   type Difficulty,
@@ -320,6 +321,12 @@ export default function TactileDrillPage() {
     [attemptHistory]
   );
 
+  // The speech-only vs speech+tactile comparison summary. Only rendered once
+  // at least two modes have attempts — with a single mode there is nothing
+  // to compare against.
+  const speechModeStats = useMemo(() => perSpeechModeStats(attemptHistory), [attemptHistory]);
+  const showSpeechComparison = speechModeStats.length >= 2;
+
   useEffect(() => {
     announce(
       "Tactile drill. Pick a mode, feel or read the dots, then type what you think it is."
@@ -606,6 +613,40 @@ export default function TactileDrillPage() {
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+
+          {showSpeechComparison && (
+            <>
+              <h3 className="text-sm font-semibold text-stone-200 mb-2">
+                Speech-only vs speech + tactile
+              </h3>
+              <ul className="space-y-1" aria-label="Accuracy by speech mode">
+                {speechModeStats.map((stats) => {
+                  const label =
+                    SPEECH_OPTIONS.find((option) => option.id === stats.speechMode)?.label ??
+                    stats.speechMode;
+                  return (
+                    <li
+                      key={stats.speechMode}
+                      className="text-sm text-stone-300 bg-surface-2 border border-surface-border rounded-lg px-3 py-2"
+                    >
+                      <span className="text-white font-medium">{label}</span>
+                      <span className="text-stone-400">
+                        {" "}
+                        — {stats.accuracyPercent}% accuracy, {stats.attempts} attempt
+                        {stats.attempts === 1 ? "" : "s"}
+                        {stats.avgResponseTimeMs !== null &&
+                          `, ${stats.avgResponseTimeMs} ms average response`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-stone-400 mt-2">
+                Compares the same symbol pool across reading modes so you can see which one
+                you read fastest and most accurately.
+              </p>
             </>
           )}
         </section>

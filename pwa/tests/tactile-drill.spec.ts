@@ -68,6 +68,35 @@ test.describe("Tactile Drill", () => {
     await expect(page.getByTestId("speech-only-hidden")).toHaveCount(0);
   });
 
+  test("comparison summary appears once attempts exist in two speech modes", async ({
+    page,
+  }) => {
+    const input = page.locator("#drill-input");
+    const submitAttempt = async () => {
+      await input.fill("zzz");
+      await input.press("Enter"); // check
+      await input.press("Enter"); // next prompt
+      await expect(input).toBeFocused();
+    };
+
+    // One attempt in speech-only mode.
+    await page.getByRole("radio", { name: "Speech only" }).click();
+    await submitAttempt();
+
+    // The summary must not render with a single mode — nothing to compare.
+    await expect(page.getByText("Speech-only vs speech + tactile")).toHaveCount(0);
+
+    // A second attempt in speech + tactile mode unlocks the comparison.
+    await page.getByRole("radio", { name: "Speech + tactile" }).click();
+    await submitAttempt();
+
+    const summary = page.locator('ul[aria-label="Accuracy by speech mode"]');
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText("Speech only");
+    await expect(summary).toContainText("Speech + tactile");
+    await expect(summary).toContainText("% accuracy");
+  });
+
   test("Punctuation mode produces a one-cell prompt", async ({ page }) => {
     await page.getByRole("radio", { name: "Punctuation" }).click();
     // Single punctuation marks are one cell each in the debug translator.
