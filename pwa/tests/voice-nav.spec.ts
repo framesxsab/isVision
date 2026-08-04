@@ -117,6 +117,19 @@ test.describe("Voice Navigation", () => {
     await expect(entry).toContainText("—");
   });
 
+  test("F6 hotkey runs a command from any page", async ({ page }) => {
+    await mockSpeechRecognition(page, ["open reader"]);
+    await page.goto("/");
+
+    await expect(page.getByRole("heading", { name: /^isVisible$/i })).toBeVisible();
+    await page.keyboard.press("F6");
+
+    // confirmAloud defaults on → the hotkey announces the command description,
+    // then runs the navigation after a short confirm pause.
+    await expect(page).toHaveURL(/\/reader$/, { timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: "Reader", exact: true })).toBeVisible();
+  });
+
   test("falls back gracefully when speech recognition is unsupported", async ({ page }) => {
     await removeSpeechRecognition(page);
     await page.goto("/voice-nav");
