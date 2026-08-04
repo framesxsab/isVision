@@ -8,7 +8,6 @@
  */
 
 import { useMemo, useRef, useState } from "react";
-import { useAnnounce } from "@/core/a11y/AriaLive";
 import { detectWebHid, detectWebSerial } from "@/core/utils/capabilities";
 import { Button } from "@/components/Button";
 import { IconUpload } from "@/components/Icons";
@@ -56,7 +55,6 @@ function CardLabel({ label }: { label: string }) {
 }
 
 export default function TactileGraphicsPage() {
-  const announce = useAnnounce();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [sourceName, setSourceName] = useState("");
@@ -74,8 +72,9 @@ export default function TactileGraphicsPage() {
   const pinRows = cellRows * 4;
 
   const updateStatus = (message: string) => {
+    // The visible role="status" paragraph already announces; calling
+    // announce() too would make screen readers speak every message twice.
     setStatus(message);
-    announce(message);
   };
 
   // Re-run the conversion with the given settings. Grid controls and the
