@@ -115,4 +115,33 @@ describe("parseCompactProtocol", () => {
     expect(parsed.frames[0]?.cells[0]?.dots).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(parsed.frames[0]?.cells[0]?.unicode).toBe(String.fromCharCode(0x28ff));
   });
+
+  it("tolerates strip input lines and surfaces them on the parsed stream", () => {
+    const parsed = parseCompactProtocol(
+      [
+        "CFG hold_ms=500 blank=1",
+        "F 0 0 1 2 3 4",
+        "IN key=next",
+        "IN braille=5",
+        "IN key=select",
+        "END",
+      ].join("\n")
+    );
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.inputs).toEqual([
+      { kind: "key", value: "next" },
+      { kind: "braille", value: "5" },
+      { kind: "key", value: "select" },
+    ]);
+    // Frames still parse alongside the input lines.
+    expect(parsed.frames).toHaveLength(1);
+    expect(parsed.frames[0]?.cells.map((c) => c.mask)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("rejects malformed strip input lines", () => {
+    const parsed = parseCompactProtocol("IN key\nEND");
+    expect(parsed.errors[0]?.message).toMatch(/Bad IN token/);
+    expect(parsed.inputs).toEqual([]);
+  });
 });

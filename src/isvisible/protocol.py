@@ -82,7 +82,21 @@ class BlankEvent:
     """A ``B`` line — pin actuators should drop to neutral momentarily."""
 
 
-StreamEvent = FrameEvent | BlankEvent
+@dataclass(frozen=True)
+class StripInputEvent:
+    """An ``IN`` line — a physical button or braille-key press on a strip.
+
+    Multi-cell strip firmware (Phase 3) reports navigation buttons and a
+    braille keyboard over the same serial line that receives ``F`` frames.
+    ``kind`` is ``"key"`` (navigation keys) or ``"braille"`` (a dot mask typed
+    on the cell). ``value`` holds the key name or the mask text respectively.
+    """
+
+    kind: str
+    value: str
+
+
+StreamEvent = FrameEvent | BlankEvent | StripInputEvent
 
 
 def _parse_cfg(line: str) -> Config:
@@ -133,6 +147,31 @@ def _parse_frame(line: str) -> Frame:
     return Frame(index=index, cell_start=cell_start, masks=masks)
 
 
+def _parse_strip_input(line: str) -> StripInputEvent:
+    """Parse an ``IN`` line into a strip input event.
+
+    Expected shapes (single ``key=value`` token after ``IN``)::
+
+        IN key=next
+        IN braille=5
+
+    ``kind`` is the key part and ``value`` the value part. The mask is kept as
+    text so the caller decides how to interpret it (e.g. a 6-dot cell ignores
+    dots 7/8 the same way the firmware does).
+    """
+
+    parts = line.split()
+    if len(parts) != 2 or parts[0] != "IN":
+        raise ProtocolError(f"Bad IN line: {line!r}")
+    token = parts[1]
+    if "=" not in token:
+        raise ProtocolError(f"Bad IN token: {token!r}")
+    kind, _, value = token.partition("=")
+    if kind not in {"key", "braille"} or not value:
+        raise ProtocolError(f"Bad IN token: {token!r}")
+    return StripInputEvent(kind=kind, value=value)
+
+
 def parse_compact_stream(text: str) -> ProtocolStream:
     """Parse a compact protocol stream into a :class:`ProtocolStream`.
 
@@ -173,6 +212,9 @@ def parse_compact_stream(text: str) -> ProtocolStream:
                 raise ProtocolError(f"B line takes no arguments: {line!r}")
             events.append(BlankEvent())
             continue
+        if head == "IN":
+            events.append(_parse_strip_input(line))
+            continue
         if head == "END":
             if line != "END":
                 raise ProtocolError(f"END line takes no arguments: {line!r}")
@@ -201,6 +243,8 @@ def serialize_compact_stream(stream: ProtocolStream) -> str:
             if mask_str:
                 line = f"{line} {mask_str}"
             lines.append(line)
+        elif isinstance(event, StripInputEvent):
+            lines.append(f"IN {event.kind}={event.value}")
         else:
             lines.append("B")
     lines.append("END")

@@ -9,6 +9,7 @@ from .protocol import (
     FrameEvent,
     ProtocolError,
     ProtocolStream,
+    StripInputEvent,
     parse_compact_stream,
     serialize_compact_stream,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "FrameEvent",
     "ProtocolError",
     "ProtocolStream",
+    "StripInputEvent",
     "build_frames",
     "parse_compact_stream",
     "serialize_compact_stream",

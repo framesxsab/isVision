@@ -16,6 +16,7 @@ from isvisible import (  # noqa: E402
     BlankEvent,
     FrameEvent,
     ProtocolError,
+    StripInputEvent,
     parse_compact_stream,
     serialize_compact_stream,
 )
@@ -131,6 +132,48 @@ class CompactProtocolParserTests(unittest.TestCase):
         stream = parse_compact_stream("CFG hold_ms=300 blank=0 future=42\nEND")
         self.assertEqual(stream.config.hold_ms, 300)
         self.assertFalse(stream.config.blank_between_frames)
+
+    def test_parses_strip_input_events(self):
+        # Phase 3: multi-cell strip firmware reports navigation buttons and a
+        # braille keyboard over the same serial line that receives F frames.
+        text = "\n".join(
+            [
+                "CFG hold_ms=300 blank=0",
+                "F 0 0 1 2 3 4",
+                "IN key=next",
+                "IN braille=5",
+                "IN key=select",
+                "END",
+            ]
+        )
+        stream = parse_compact_stream(text)
+
+        inputs = [e for e in stream.events if isinstance(e, StripInputEvent)]
+        self.assertEqual(
+            [(e.kind, e.value) for e in inputs],
+            [("key", "next"), ("braille", "5"), ("key", "select")],
+        )
+        # Frames still parse and sit alongside the input events in order.
+        kinds = [type(e).__name__ for e in stream.events]
+        self.assertEqual(
+            kinds,
+            ["FrameEvent", "StripInputEvent", "StripInputEvent", "StripInputEvent"],
+        )
+
+    def test_strip_input_round_trips_through_serialize(self):
+        stream = parse_compact_stream(
+            "CFG hold_ms=300 blank=0\nF 0 0 1\nIN braille=3\nIN key=prev\nEND"
+        )
+        replay = parse_compact_stream(serialize_compact_stream(stream))
+        self.assertEqual(replay.events, stream.events)
+
+    def test_rejects_malformed_strip_input_lines(self):
+        with self.assertRaises(ProtocolError):
+            parse_compact_stream("IN key\nEND")
+        with self.assertRaises(ProtocolError):
+            parse_compact_stream("IN unknown=1\nEND")
+        with self.assertRaises(ProtocolError):
+            parse_compact_stream("IN braille=\nEND")
 
 
 if __name__ == "__main__":

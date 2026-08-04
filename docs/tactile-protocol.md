@@ -23,11 +23,20 @@ END
 
 Commands:
 
-- `CFG hold_ms=<number> blank=<0|1>` sets firmware playback behavior. The Arduino prototype accepts `hold_ms` from `100` through `5000`.
-- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is an eight-dot braille bitmask in the range `0..255`. Six-dot prototypes drive dots 1-6 and ignore dots 7-8.
+- `CFG hold_ms=<number> blank=<0|1>` sets firmware playback behavior. The Arduino prototype accepts `hold_ms` from `100` through `5000`. The multi-cell strip firmware additionally accepts `input_mode=<0|1>` to toggle braille-keyboard reporting.
+- `F <frame_index> <cell_start> <mask...>` renders one frame. Each mask is an eight-dot braille bitmask in the range `0..255`. Six-dot prototypes drive dots 1-6 and ignore dots 7-8. On a multi-cell strip, one mask is written to each cell starting at `cell_start`, so a 4-cell frame is `F 0 0 1 3 9 25`.
 - `B` blanks all pins.
 - `END` marks the end of a batch and blanks pins.
 - Lines beginning with `#` are comments.
+
+### Input (multi-cell strip)
+
+The cell-strip firmware reports physical input on the same serial wire with `IN` lines:
+
+- `IN key=<name>` — navigation button press. `name` is one of `prev`, `next`, `select`, `enter`.
+- `IN braille=<mask>` — the current 8-dot mask typed on the braille keyboard, emitted on any change while `input_mode=1`.
+
+Hosts may ignore `IN` lines they don't handle; they are part of the same batch stream and do not affect frame playback.
 
 Firmware and bridge implementations should reject malformed numeric fields instead of coercing them. A bad frame must not actuate a different dot pattern than the host intended.
 

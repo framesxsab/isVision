@@ -8,7 +8,7 @@ export interface BrailleCell {
 
 export interface TactileFrame {
   type: "frame";
-  mode: "text";
+  mode: "text" | "graphics";
   index: number;
   cellStart: number;
   cells: BrailleCell[];
@@ -163,9 +163,15 @@ export interface CompactProtocolError {
   message: string;
 }
 
+export interface CompactInput {
+  kind: "key" | "braille";
+  value: string;
+}
+
 export interface ParsedCompactProtocol {
   frames: TactileFrame[];
   options: CompactProtocolOptions;
+  inputs: CompactInput[];
   errors: CompactProtocolError[];
 }
 
@@ -175,6 +181,7 @@ export interface ParsedCompactProtocol {
 export function parseCompactProtocol(text: string): ParsedCompactProtocol {
   const frames: TactileFrame[] = [];
   const errors: CompactProtocolError[] = [];
+  const inputs: CompactInput[] = [];
   const options: CompactProtocolOptions = { holdMs: 900, blankBetweenFrames: true };
   let sawEnd = false;
   let cfgSeen = false;
@@ -233,6 +240,25 @@ export function parseCompactProtocol(text: string): ParsedCompactProtocol {
       return;
     }
 
+    if (head === "IN") {
+      // Multi-cell strip input line: `IN key=next` or `IN braille=5`.
+      // Tolerated so input-bearing streams don't break the emulator.
+      const token = rest[0] ?? "";
+      const eq = token.indexOf("=");
+      if (eq < 0 || !rest[0]) {
+        errors.push({ line: lineNo, content: raw, message: `Bad IN token "${token}".` });
+        return;
+      }
+      const kind = token.slice(0, eq);
+      const value = token.slice(eq + 1);
+      if ((kind !== "key" && kind !== "braille") || value.length === 0) {
+        errors.push({ line: lineNo, content: raw, message: `Bad IN token "${token}".` });
+        return;
+      }
+      inputs.push({ kind, value });
+      return;
+    }
+
     if (head === "END") {
       sawEnd = true;
       return;
@@ -281,5 +307,5 @@ export function parseCompactProtocol(text: string): ParsedCompactProtocol {
     errors.push({ line: lines.length, content: "", message: "Missing END marker." });
   }
 
-  return { frames, options, errors };
+  return { frames, options, inputs, errors };
 }
