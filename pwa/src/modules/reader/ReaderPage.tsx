@@ -256,11 +256,18 @@ export default function ReaderPage() {
   }, [htmlContent]);
 
   const sendSelectionToTactile = useCallback(() => {
-    if (!selectedText) return;
+    if (!selectedText) {
+      // The button hides when the selection collapses, but a click can still
+      // land after the selection is cleared (e.g. a stray selectionchange
+      // between render and handler) — say so instead of silently doing nothing.
+      announce("No text selected. Select a passage in the article first.");
+      speechEngine.interrupt("No text selected. Select a passage in the article first.");
+      return;
+    }
     pushTactileHandoff(selectedText, "Reader selection");
     speechEngine.interrupt("Sending selected text to Tactile Lab.");
     navigate("/tactile-output");
-  }, [navigate, selectedText]);
+  }, [announce, navigate, selectedText]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
