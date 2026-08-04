@@ -46,7 +46,7 @@ This is small enough to build and test, but it teaches the real mechanical, elec
 
 ## PWA — Software Accessibility Platform
 
-A fully functional Progressive Web App with six modules:
+A fully functional Progressive Web App with seven modules:
 
 - **Touch Explorer** — Slide a finger across the screen to hear element descriptions with haptic vibration and spatial audio.
 - **AI Vision** — Camera capture → vision model → spoken description.

@@ -8,7 +8,7 @@ This spec turns the current isVisible PWA and prototype roadmap into practical i
 
 The project already includes:
 
-- React/Vite PWA with routed modules for Home, Onboarding, Settings, Touch Explorer, AI Vision, Reader, Voice Navigation, Tactile Output Lab, and Tactile Drill.
+- React/Vite PWA with routed modules for Home, Onboarding, Settings, Touch Explorer, AI Vision, Reader, Voice Navigation, Tactile Output Lab, Tactile Drill, and Tactile Graphics.
 - Persistent settings through `isvisible-settings` and tactile state through `isvisible-tactile`.
 - Liblouis-backed Grade 2 braille translation for English UEB, French, and German, with lazy-loaded offline assets.
 - Web Serial, WebHID scaffold, compact frame export, and an OS-side `tactile_serve.py` bridge.
