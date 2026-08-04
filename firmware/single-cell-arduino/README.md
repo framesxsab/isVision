@@ -39,3 +39,33 @@ Malformed protocol lines are rejected instead of coerced. `hold_ms` must be an i
 The loop keeps draining the serial port during a hold, but this first prototype still has a small 12-line command queue. Hosts should pace playback: send `CFG`, then each `F` line, wait at least `hold_ms`, send the optional `B`, and continue. The PWA Web Serial sender does this pacing automatically.
 
 If a host sends too far ahead and the queue fills, the firmware prints `ERR queue full, batch aborted`, blanks the pins, clears the queue, and ignores incoming lines until `END` resynchronizes the stream. This is intentional: a truncated tactile sequence is worse than a clearly failed one.
+
+## Bill of materials
+
+- 1 × Arduino Uno / Nano / Pro Micro (or any 5 V AVR board with a free pin for each dot).
+- 6 × solenoid, piezo bender, or shape-memory actuator for the six pins.
+- 6 × driver: ULN2803 darlington array (one channel per dot) or a MOSFET per pin, with a flyback diode across each inductive load.
+- 1 × 10 kΩ pull-up resistor per unused input if your board does not enable internal pull-ups.
+- Power supply sized to your actuator's holding current, common with the board's ground.
+
+## Assembly
+
+1. Wire each dot pin (`2`–`7`) to a driver input; the driver output to the actuator's low side; the actuator high side to the supply.
+2. Tie all grounds together (board, driver, supply, actuator return).
+3. Upload the sketch, then open the serial monitor at 115200 baud. You should see `isVisible single-cell tactile firmware ready`.
+4. Smoke-test with one line: send `CFG hold_ms=500 blank=1`, then `F 0 0 32`, then `END`. Dot 6 should raise for 500 ms. (Mask `32` = dot 6.)
+
+Never drive a solenoid or motor directly from a GPIO pin — the pin cannot source enough current and the back-EMF will destroy it.
+
+## Build & upload
+
+This sketch has no library dependencies, so it builds with stock Arduino tooling:
+
+```text
+arduino-cli compile --fqbn arduino:avr:uno firmware/single-cell-arduino/single_cell_tactile
+arduino-cli upload -p COM5 --fqbn arduino:avr:uno firmware/single-cell-arduino/single_cell_tactile
+```
+
+Or open `single_cell_tactile.ino` in the Arduino IDE and press Upload.
+
+There is no automated firmware test in CI (it needs the AVR toolchain); the protocol the firmware speaks is covered by the Python unit tests in `tests/test_protocol.py`, and the PWA's compact emitter/parser is covered by the vitest suite in `pwa/src/modules/tactile-output/brailleFrames.test.ts`.

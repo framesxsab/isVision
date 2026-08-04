@@ -39,6 +39,10 @@ This is small enough to build and test, but it teaches the real mechanical, elec
 - [Research notes](docs/research-notes.md)
 - [Roadmap](docs/roadmap.md)
 - [Prototype architecture](docs/prototype-architecture.md)
+- [User problem brief](docs/user-problem-brief.md)
+- [Setup guide](docs/setup-guide.md)
+- [OS integration](docs/integration.md)
+- [Tactile protocol](docs/tactile-protocol.md)
 
 ## PWA — Software Accessibility Platform
 
@@ -50,6 +54,7 @@ A fully functional Progressive Web App with six modules:
 - **Voice Navigation** — Push-to-talk voice commands across every module, including `tactile drill` and `braille lab`.
 - **Tactile Output Lab** — Convert text into braille cell frames (Grade 1 debug or Liblouis Grade 2 in English UEB / French / German). Stream them over Web Serial or WebHID, or export JSON Lines / compact protocol for downstream firmware.
 - **Tactile Drill** — Practice letters, words, numbers, and punctuation across three difficulty levels. Tracks score, streak, and per-attempt history. Export your session as CSV.
+- **Tactile Graphics** — Turn a chart, map, or diagram into a low-resolution tactile pin matrix that plays on a braille-cell display. Dark areas become raised pins; the app segments them into labeled regions and emits compact-protocol frames for the same hardware as braille text.
 
 ### Software-side features at a glance
 
@@ -95,6 +100,11 @@ python tools/tactile_serve.py --file frames.txt --out brltty
 `pyserial` and `brlapi` are imported lazily, so the script and its tests run on a machine that has neither installed.
 
 ## Hardware Track — Tactile Braille Prototype
+
+Two Arduino firmware targets accept the compact protocol the PWA emits:
+
+- [firmware/single-cell-arduino/](firmware/single-cell-arduino/) — one six-dot braille cell (Phase 2).
+- [firmware/cell-strip-arduino/](firmware/cell-strip-arduino/) — a 4–8-cell strip on 74HC595 shift registers with navigation buttons and a braille keyboard that report back as `IN` input lines (Phase 3).
 
 Generate prototype tactile frames from the command line:
 
