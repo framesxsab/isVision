@@ -25,6 +25,7 @@ const ReaderPage = lazy(() => import("@/modules/reader/ReaderPage"));
 const VoiceNavPage = lazy(() => import("@/modules/voice-nav/VoiceNavPage"));
 const TactileOutputPage = lazy(() => import("@/modules/tactile-output/TactileOutputPage"));
 const TactileDrillPage = lazy(() => import("@/modules/tactile-output/TactileDrillPage"));
+const TactileGraphicsPage = lazy(() => import("@/modules/tactile-graphics/TactileGraphicsPage"));
 const HardwareEmulatorPage = lazy(() => import("@/modules/tactile-output/HardwareEmulatorPage"));
 
 function PageLoader() {
@@ -117,6 +118,14 @@ export default function App() {
                 element={
                   <ErrorBoundary moduleName="Tactile Drill">
                     <RequireOnboarding><TactileDrillPage /></RequireOnboarding>
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/tactile-graphics"
+                element={
+                  <ErrorBoundary moduleName="Tactile Graphics">
+                    <RequireOnboarding><TactileGraphicsPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />

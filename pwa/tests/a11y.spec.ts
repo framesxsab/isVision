@@ -16,6 +16,7 @@ const ROUTES = [
   { path: "/voice-nav", label: "Voice Navigation" },
   { path: "/tactile-output", label: "Tactile Output Lab" },
   { path: "/tactile-drill", label: "Tactile Drill" },
+  { path: "/tactile-graphics", label: "Tactile Graphics" },
   { path: "/hardware-emulator", label: "Hardware Emulator" },
   { path: "/troubleshoot", label: "Troubleshoot" },
   { path: "/does-not-exist", label: "Not Found" },

@@ -161,3 +161,14 @@ export function IconEar({ className = "w-6 h-6" }: IconProps) {
     </svg>
   );
 }
+
+export function IconGrid({ className = "w-6 h-6" }: IconProps) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={2} />
+      <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={2} />
+      <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={2} />
+      <rect x="14" y="14" width="7" height="7" rx="1" strokeWidth={2} />
+    </svg>
+  );
+}

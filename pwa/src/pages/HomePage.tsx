@@ -8,6 +8,7 @@ import {
   IconBook,
   IconBraille,
   IconCamera,
+  IconGrid,
   IconMicrophone,
   IconSettings,
   IconTarget,
@@ -84,6 +85,15 @@ const modules: ModuleInfo[] = [
     path: "/tactile-drill",
     accent: "yellow",
     meta: "Practice",
+  },
+  {
+    id: "tactile-graphics",
+    title: "Tactile Graphics",
+    description: "Turn a chart or diagram into a tactile pin matrix.",
+    icon: <IconGrid className="w-5 h-5" />,
+    path: "/tactile-graphics",
+    accent: "rose",
+    meta: "Graphics",
   },
 ];
 
