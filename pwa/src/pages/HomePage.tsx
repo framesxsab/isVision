@@ -128,7 +128,7 @@ function SectionLabel({ n, label }: { n: string; label: string }) {
         {n}
       </span>
       <span className="flex-1 h-px bg-gradient-to-r from-primary-400/40 to-transparent" />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400 pr-20 sm:pr-24 lg:pr-0">
         {label}
       </span>
     </div>
@@ -154,7 +154,7 @@ export default function HomePage() {
   const compact = modules.filter((m) => !m.featured);
 
   return (
-    <div className="min-h-screen pb-nav">
+    <div className="min-h-screen pb-nav-action">
       {/* ── HERO ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden px-5 sm:px-8 lg:px-14 pt-10 sm:pt-14 lg:pt-16 pb-10 lg:pb-14 max-w-7xl mx-auto">
         {/* decorative radial glows — visible at scale, not distracting */}
