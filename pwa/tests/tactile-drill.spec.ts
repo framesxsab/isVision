@@ -33,7 +33,7 @@ test.describe("Tactile Drill", () => {
 
   test("Letters mode produces a one-cell prompt", async ({ page }) => {
     await page.getByRole("radio", { name: "Letters" }).click();
-    await expect(page.getByTestId("cells-debug")).toHaveText(/^1 cells$/);
+    await expect(page.getByTestId("cells-debug")).toHaveText(/^1 cell$/);
   });
 
   test("Numbers mode produces 2-4 cells depending on digit count", async ({ page }) => {
@@ -100,7 +100,7 @@ test.describe("Tactile Drill", () => {
   test("Punctuation mode produces a one-cell prompt", async ({ page }) => {
     await page.getByRole("radio", { name: "Punctuation" }).click();
     // Single punctuation marks are one cell each in the debug translator.
-    await expect(page.getByTestId("cells-debug")).toHaveText(/^1 cells$/);
+    await expect(page.getByTestId("cells-debug")).toHaveText(/^1 cell$/);
   });
 
   test("Difficulty selector switches the prompt pool", async ({ page }) => {

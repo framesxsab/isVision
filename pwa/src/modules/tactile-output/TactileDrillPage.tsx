@@ -235,7 +235,9 @@ export default function TactileDrillPage() {
     // The doc lists "repeat current cell" as a test task. We pulse the live
     // region so a screen reader re-reads the prompt cue, and re-trigger
     // speech if we're in a speech mode.
-    announce(`Repeat: ${current.kind}. ${cells.length} cells.`);
+    announce(
+        `Repeat: ${current.kind}. ${cells.length} ${cells.length === 1 ? "cell" : "cells"}.`
+      );
     if (speechMode !== "silent") {
       speechEngine.interrupt(current.answer);
     }
@@ -496,7 +498,9 @@ export default function TactileDrillPage() {
             aria-label={
               speechMode === "speech"
                 ? `Current prompt is a ${current.kind}. Tactile output hidden in speech-only mode.`
-                : `Current prompt is a ${current.kind} with ${cells.length} braille cells.`
+                : `Current prompt is a ${current.kind} with ${cells.length} braille ${
+                cells.length === 1 ? "cell" : "cells"
+              }.`
             }
           >
             {speechMode === "speech" ? (
@@ -516,7 +520,7 @@ export default function TactileDrillPage() {
               </p>
             )}
             <p className="text-xs text-stone-400 mt-3" data-testid="cells-debug">
-              {cells.length} cells
+              {cells.length} {cells.length === 1 ? "cell" : "cells"}
             </p>
           </div>
         </section>
