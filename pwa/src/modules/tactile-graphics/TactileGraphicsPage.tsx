@@ -233,7 +233,7 @@ export default function TactileGraphicsPage() {
 
   return (
     <PageShell title="Tactile Graphics" accent="rose" width="wide">
-      <div className="flex-1 px-4 sm:px-6 lg:px-10 py-8 max-w-5xl mx-auto w-full space-y-8">
+      <div className="flex-1 px-4 sm:px-6 lg:px-10 py-8 max-w-5xl mx-auto w-full space-y-8 pb-nav-action">
         <section aria-labelledby="graphics-intro" className={sectionCard}>
           <CardLabel label="What this does" />
           <p id="graphics-intro" className="text-stone-300 text-sm leading-relaxed">
