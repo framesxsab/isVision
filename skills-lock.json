@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "modlens": {
+      "source": "liustack/modlens",
+      "sourceType": "github",
+      "skillPath": "skills/modlens/SKILL.md",
+      "computedHash": "aa00e2a1dd980b0dabd67bf88054ed0825fe423a7bf92f5312ad06a58936f436"
+    }
+  }
+}
