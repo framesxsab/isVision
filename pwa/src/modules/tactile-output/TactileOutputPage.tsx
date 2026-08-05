@@ -751,7 +751,7 @@ export default function TactileOutputPage() {
         </div>
         <p
           id="serial-hint"
-          className="max-w-3xl mx-auto text-center text-xs text-stone-400 mt-2"
+          className="max-w-3xl mx-auto text-center text-xs text-stone-400 mt-2 pr-20 sm:pr-24 lg:pr-0"
         >
           {serialCap.available
             ? "Keyboard: C copy, S save, N send, V speak preview. F6 anywhere for voice."
