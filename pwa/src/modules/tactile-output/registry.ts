@@ -79,7 +79,37 @@ export function getAvailableSinks(): DeviceDescriptor[] {
   return autoDiscover().filter((d) => d.available);
 }
 
-export const defaultRegistry = { registerSink, autoDiscover, getAvailableSinks, setEnabled, isEnabled, isVersionCompatible, validateDependencies };
+export function installPlugin(manifest: DeviceManifest, factory: () => FrameSink): boolean {
+  try {
+    registerSink(manifest, factory);
+    return store.has(manifest.name);
+  } catch {
+    return false;
+  }
+}
+
+export function uninstallPlugin(name: string): boolean {
+  const had = store.has(name);
+  store.delete(name);
+  enabled.delete(name);
+  return had;
+}
+
+export function getMetadata(name: string): DeviceManifest | null {
+  return store.get(name)?.manifest ?? null;
+}
+
+export function safeCreate(name: string): FrameSink | null {
+  const entry = store.get(name);
+  if (!entry) return null;
+  try {
+    return entry.factory();
+  } catch {
+    return null;
+  }
+}
+
+export const defaultRegistry = { registerSink, autoDiscover, getAvailableSinks, setEnabled, isEnabled, isVersionCompatible, validateDependencies, installPlugin, uninstallPlugin, getMetadata, safeCreate };
 
 export function parseManifest(raw: unknown): DeviceManifest | null {
   if (!raw || typeof raw !== "object") return null;
