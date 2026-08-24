@@ -19,18 +19,20 @@ All notable changes — Keep a Changelog (https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - `pwa/tests/touch-explorer.spec.ts` selector `application` → `region` for keyboard path
 
-## [Unreleased] — v0.2.0-prep (branch `v0.2.0-prep`)
+## [Unreleased] — v0.2.0-prep (branch `v0.2.0-prep`, now v0.3 excellence)
 
-### Added (this branch, Phase 1)
-- `ACCESSIBILITY.md` — WCAG 2.2 AA stance, tested matrix, CI, gap list
-- `ARCHITECTURE.md` — mermaid system map, 7 modules, data flows, folder map
-- `HARDWARE.md` — kit vs product, safety constraints table, BOM hints
-- `ROADMAP.md` — status-badged Phases 0–5, v0.1.0 → v0.3.0 milestones
-- `API.md` — reader/liblouis/voice/protocol/bridge/settings keys
-- `DESIGN_SYSTEM.md` — tokens, Button/Card/PageShell primitives, additive rules
-- `RESEARCH.md` — artifact index, citation, reproducibility
-- `FIELD_STUDY_PROTOCOL.md` — N=12, consent, SUS, task timing (no fabricated data)
-- `CONTRIBUTOR_GUIDE.md` — 5-minute onboarding
-- `.github/CODEOWNERS`, `FUNDING.yml`, `labels.yml`, `release.yml` (tag → build + release)
+### Added (Phases 1-8 + v0.3 product excellence, additive only)
+- Phase 1 docs: `ACCESSIBILITY.md`, `ARCHITECTURE.md`, `HARDWARE.md`, `ROADMAP.md`, `API.md`, `DESIGN_SYSTEM.md`, `RESEARCH.md`, `FIELD_STUDY_PROTOCOL.md`, `CONTRIBUTOR_GUIDE.md` + CODEOWNERS/FUNDING/labels/release.yml
+- Reader excellence: `readingHelpers.ts` (sentence split, reading time, presets), `useReader` sentence nav (Alt+←/→, S/T), paragraph+sentence progress, TOC filter, cheat sheet, Esc home
+- Tactile Lab: `previewZoom.tsx` (1x/1.5x/2x + ScaledPreview), `exportHistory.ts` (last-5 + Replay)
+- Touch Explorer flagship: `regionStats.ts`, `RegionLegend`, `CalibrationPanel`, `TutorialPanel`, `HapticIntensityControl`, `PerfOverlay`, `SpatialAudio` 90ms ramp, `settingsStore` hapticIntensity 0.5/1/1.5 + v6 migrate
+- A11y polish: `Skeleton.tsx` (motion-safe), aria-busy/empty role=status/error Try again, OfflineBanner polite, focus-visible, announcements
+- Delight: `/shortcuts` page + `CommandPalette` (Cmd+K) + research playground `/research-playground`, Storybook config, module graph, coverage
+- Plugin marketplace: `PLUGIN_ARCHITECTURE.md` + `MIGRATION_PLUGIN.md`, `registry` vcompat/enable/loadManifests, `deviceManager` hot-swap, `Mock/Virtual/BRLTTYRelay`, `manifest.schema.json`, `SDK.md`, `PLUGIN_GUIDE.md`, `create-plugin` scaffold, examples, `testing.ts`
+- Reliability: `lighthouse.yml`, `PERF.md`, `COVERAGE.md` + `release.yml` artifacts
+- Community: `GOOD_FIRST_ISSUES.md`, `HELP_WANTED.md`, 20 markdown issues in `.github/issues` + `docs/issues`
+
+### Verified
+- `npm run verify` (build + 216 vitest + 83 e2e axe) + `python 32` + `check-env` green on v0.3 branch
 
 [0.1.0]: https://github.com/framesxsab/isVision/releases/tag/v0.1.0
