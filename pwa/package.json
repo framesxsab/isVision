@@ -20,6 +20,7 @@
     "server": "node server/index.mjs",
     "verify": "npm run build && npm test && npm run test:a11y",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:a11y": "playwright test",
     "audit:mobile": "node scripts/mobile-audit.mjs"
   },

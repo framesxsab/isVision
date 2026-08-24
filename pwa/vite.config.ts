@@ -86,4 +86,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      exclude: ["tests/**", "**/*.test.ts", "**/*.stories.tsx"],
+    },
+  },
 });
