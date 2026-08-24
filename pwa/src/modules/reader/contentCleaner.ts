@@ -106,11 +106,8 @@ export function cleanContent(html: string, baseUrl?: string): {
 
   const safeHtml = DOMPurify.sanitize(article.innerHTML, {
     USE_PROFILES: { html: true },
-    // DOMPurify already strips <script>, event handlers, and unsafe URIs.
-    // We additionally forbid form/iframe/object/embed (re-asserted in case a
-    // profile change loosens defaults) and harden the URI allow-list.
     FORBID_TAGS: ["form", "iframe", "object", "embed", "input", "textarea", "select", "button", "style", "link"],
-    FORBID_ATTR: ["style", "srcdoc", "formaction", "ping"],
+    FORBID_ATTR: ["style", "srcdoc", "formaction", "ping", "role", "tabindex"],
     ALLOWED_URI_REGEXP: SAFE_URI,
   });
 
@@ -128,6 +125,9 @@ export function cleanContent(html: string, baseUrl?: string): {
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.tagName === "A" && node.getAttribute("target") === "_blank") {
     node.setAttribute("rel", "noopener noreferrer");
+  }
+  for (const attr of Array.from((node as Element).attributes ?? [])) {
+    if (attr.name.startsWith("aria-")) (node as Element).removeAttribute(attr.name);
   }
 });
 

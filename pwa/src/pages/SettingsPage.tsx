@@ -148,7 +148,7 @@ function ToggleRow({
 }) {
   return (
     <label
-      className={`flex items-center justify-between gap-4 min-h-touch px-3 -mx-3 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] ${
+      className={`flex items-center justify-between gap-4 min-h-touch px-3 -mx-3 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] focus-within:ring-2 focus-within:ring-primary-400 focus-within:ring-offset-2 focus-within:ring-offset-surface-0 ${
         disabled ? "opacity-60 cursor-not-allowed" : ""
       }`}
     >
@@ -159,6 +159,8 @@ function ToggleRow({
       <span className="relative inline-flex shrink-0">
         <input
           type="checkbox"
+          role="switch"
+          aria-checked={checked}
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           disabled={disabled}
