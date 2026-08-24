@@ -29,6 +29,7 @@ const TactileGraphicsPage = lazy(() => import("@/modules/tactile-graphics/Tactil
 const HardwareEmulatorPage = lazy(() => import("@/modules/tactile-output/HardwareEmulatorPage"));
 const DeviceDiagnosticsPage = lazy(() => import("@/pages/DeviceDiagnosticsPage"));
 const ResearchPlaygroundPage = lazy(() => import("@/pages/ResearchPlaygroundPage"));
+const ShortcutsPage = lazy(() => import("@/pages/ShortcutsPage"));
 
 function PageLoader() {
   return (
@@ -152,6 +153,14 @@ export default function App() {
                 element={
                   <ErrorBoundary moduleName="Research Playground">
                     <RequireOnboarding><ResearchPlaygroundPage /></RequireOnboarding>
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/shortcuts"
+                element={
+                  <ErrorBoundary moduleName="Shortcuts">
+                    <RequireOnboarding><ShortcutsPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />
