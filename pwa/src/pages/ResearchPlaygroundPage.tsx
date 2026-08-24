@@ -13,6 +13,8 @@ export default function ResearchPlaygroundPage() {
   ]);
   const [sus, setSus] = useState<number[]>(Array(10).fill(3));
   const [sessions, setSessions] = useState<string[]>([]);
+  const [participantId, setParticipantId] = useState("");
+  const [consentGiven, setConsentGiven] = useState(false);
   const announce = useAnnounce();
 
   const startTask = (id: string) => {
@@ -42,9 +44,22 @@ export default function ResearchPlaygroundPage() {
   };
 
   const recordSession = () => {
-    const entry = `Session ${sessions.length + 1} — ${new Date().toISOString()} — SUS ${sus.reduce((a, b) => a + b, 0)}`;
+    const pid = participantId.trim() || `anon-${sessions.length + 1}`;
+    const entry = `Session ${sessions.length + 1} — ${pid} — ${new Date().toISOString()} — SUS ${sus.reduce((a, b) => a + b, 0)}`;
     setSessions((s) => [...s, entry]);
     announce("Recorded anonymous session");
+    const log = { participantId: pid, timestamp: new Date().toISOString(), sus: susScore, tasks };
+    try {
+      localStorage.setItem(`isvisible-repro-${Date.now()}`, JSON.stringify(log));
+    } catch {}
+  };
+
+  const randomizeTasks = () => {
+    setTasks((ts) => {
+      const shuffled = [...ts].sort(() => Math.random() - 0.5);
+      announce(`Tasks randomized: ${shuffled.map((t) => t.id).join(", ")}`);
+      return shuffled;
+    });
   };
 
   const susScore = (() => {
@@ -59,20 +74,39 @@ export default function ResearchPlaygroundPage() {
   return (
     <PageShell title="Research Playground" accent="emerald">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <section aria-labelledby="onboarding-heading" className="surface-panel border border-surface-border rounded-2xl p-5">
+          <h2 id="onboarding-heading" className="text-lg font-semibold text-stone-50">Participant onboarding</h2>
+          <p className="text-sm text-stone-400 mt-1">No PII stored — ID only, anonymized before commit. See consent template.</p>
+          <label htmlFor="participant-id" className="block text-sm text-stone-300 mt-3">Participant ID (e.g., P01)</label>
+          <input id="participant-id" value={participantId} onChange={(e) => setParticipantId(e.target.value)} placeholder="P01" className="mt-2 w-full bg-surface-2 text-white border border-surface-border rounded-xl px-4 py-3" aria-label="Participant ID" />
+        </section>
+
+        <section aria-labelledby="consent-heading" className="surface-panel border border-surface-border rounded-2xl p-5">
+          <h2 id="consent-heading" className="text-lg font-semibold text-stone-50">Consent</h2>
+          <label className="flex items-start gap-3 mt-3 cursor-pointer">
+            <input type="checkbox" checked={consentGiven} onChange={(e) => setConsentGiven(e.target.checked)} className="mt-1" aria-label="Consent given" />
+            <span className="text-sm text-stone-300">I consent to participate (notes only, withdrawal anytime, anonymized). See docs/research/templates/consent.template.md</span>
+          </label>
+          {!consentGiven && <p className="text-xs text-amber-300 mt-2" role="status">Consent required before tasks.</p>}
+        </section>
+
         <section aria-labelledby="timer-heading" className="surface-panel border border-surface-border rounded-2xl p-5">
           <h2 id="timer-heading" className="text-lg font-semibold text-stone-50">Task timer</h2>
+          <p className="text-xs text-stone-500">Randomized order reduces learning bias — no fabricated participants.</p>
+          <Button variant="ghost" onClick={randomizeTasks} className="mt-2" aria-label="Randomize task order">Randomize order</Button>
           <ul className="mt-3 space-y-2">
             {tasks.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-2 surface-card border border-surface-border rounded-xl p-3">
                 <span className="text-stone-200">{t.id}: {t.name}</span>
                 <span className="flex gap-2">
-                  <Button variant="secondary" onClick={() => startTask(t.id)} aria-label={`Start ${t.name}`}>Start</Button>
-                  <Button variant="ghost" onClick={() => stopTask(t.id)} aria-label={`Stop ${t.name}`}>Stop</Button>
+                  <Button variant="secondary" onClick={() => startTask(t.id)} disabled={!consentGiven} aria-label={`Start ${t.name}`}>Start</Button>
+                  <Button variant="ghost" onClick={() => stopTask(t.id)} disabled={!consentGiven} aria-label={`Stop ${t.name}`}>Stop</Button>
                 </span>
               </li>
             ))}
           </ul>
           <Button onClick={exportCsv} className="mt-4" aria-label="Export task timing CSV">Export CSV</Button>
+          <p className="text-xs text-stone-500 mt-2">CSV: docs/research/templates/task_timing.schema.csv · Anonymize via tools/anonymize_field_notes.py before commit. Repro log stored in localStorage isvisible-repro-*</p>
         </section>
 
         <section aria-labelledby="sus-heading" className="surface-panel border border-surface-border rounded-2xl p-5">
