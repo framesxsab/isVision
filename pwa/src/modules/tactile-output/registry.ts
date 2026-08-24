@@ -18,27 +18,57 @@ export type DeviceDescriptor = {
 };
 
 const store = new Map<string, { manifest: DeviceManifest; factory: () => FrameSink }>();
+const enabled = new Map<string, boolean>();
 
 export function registerSink(manifest: DeviceManifest, factory: () => FrameSink) {
+  if (!isVersionCompatible(manifest.version)) {
+    console.warn(`Plugin ${manifest.name} version ${manifest.version} incompatible`);
+    return;
+  }
+  const dep = validateDependencies(manifest);
+  if (!dep.ok) {
+    console.warn(`Plugin ${manifest.name} missing dependencies: ${dep.missing.join(", ")}`);
+  }
   store.set(manifest.name, { manifest, factory });
+  if (!enabled.has(manifest.name)) enabled.set(manifest.name, true);
+}
+
+export function setEnabled(name: string, on: boolean) {
+  if (store.has(name)) enabled.set(name, on);
+}
+
+export function isEnabled(name: string): boolean {
+  return enabled.get(name) ?? true;
+}
+
+export function isVersionCompatible(version: string): boolean {
+  if (!version) return true;
+  const major = parseInt(version.split(".")[0] ?? "0", 10);
+  return major === 0 || major === 1;
+}
+
+export function validateDependencies(manifest: DeviceManifest): { ok: boolean; missing: string[] } {
+  const missing: string[] = [];
+  for (const req of manifest.requires ?? []) {
+    if (req === "WebSerial" && (typeof navigator === "undefined" || !("serial" in navigator))) missing.push(req);
+    if (req === "WebHID" && (typeof navigator === "undefined" || !("hid" in navigator))) missing.push(req);
+    if (req === "WebBluetooth" && (typeof navigator === "undefined" || !("bluetooth" in navigator))) missing.push(req);
+  }
+  return { ok: missing.length === 0, missing };
 }
 
 export function autoDiscover(): DeviceDescriptor[] {
-  return Array.from(store.values()).map(({ manifest, factory }) => {
+  return Array.from(store.entries()).map(([name, { manifest, factory }]) => {
     let available = true;
     let reason = "available";
-    for (const req of manifest.requires ?? []) {
-      if (req === "WebSerial" && (typeof navigator === "undefined" || !("serial" in navigator))) {
+    if (!isEnabled(name)) {
+      available = false;
+      reason = "disabled";
+    } else {
+      const dep = validateDependencies(manifest);
+      if (!dep.ok) {
         available = false;
-        reason = "Web Serial not supported";
-      }
-      if (req === "WebHID" && (typeof navigator === "undefined" || !("hid" in navigator))) {
-        available = false;
-        reason = "WebHID not supported";
-      }
-      if (req === "WebBluetooth" && (typeof navigator === "undefined" || !("bluetooth" in navigator))) {
-        available = false;
-        reason = "Web Bluetooth not supported";
+        reason = dep.missing.join(", ") + " not supported";
       }
     }
     return { manifest, factory, available, reason };
@@ -49,11 +79,18 @@ export function getAvailableSinks(): DeviceDescriptor[] {
   return autoDiscover().filter((d) => d.available);
 }
 
-export const defaultRegistry = { registerSink, autoDiscover, getAvailableSinks };
+export const defaultRegistry = { registerSink, autoDiscover, getAvailableSinks, setEnabled, isEnabled, isVersionCompatible, validateDependencies };
 
 export function parseManifest(raw: unknown): DeviceManifest | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   if (typeof o.name !== "string" || typeof o.sink !== "string") return null;
   return o as DeviceManifest;
+}
+
+export function loadManifests(manifests: unknown[], factories: Record<string, () => FrameSink>) {
+  for (const raw of manifests) {
+    const m = parseManifest(raw);
+    if (m && factories[m.sink]) registerSink(m, factories[m.sink]!);
+  }
 }
