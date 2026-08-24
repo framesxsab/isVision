@@ -13,6 +13,23 @@ class SpatialAudioImpl {
   private ctx: AudioContext | null = null;
   private enabled = true;
 
+  // Pan/pitch glide between successive cues (Phase 3). Audio-only feedback:
+  // prefers-reduced-motion governs visual motion and is intentionally not
+  // consulted here.
+  private smoothingEnabled = true;
+  private static TRANSITION_S = 0.09;
+  private lastPan: number | null = null;
+  private lastFreq: number | null = null;
+
+  /** Toggle pan/pitch transition smoothing (default: on). */
+  setSmoothingEnabled(enabled: boolean) {
+    this.smoothingEnabled = enabled;
+    if (!enabled) {
+      this.lastPan = null;
+      this.lastFreq = null;
+    }
+  }
+
   init() {
     if (this.ctx) return;
     if (typeof window !== "undefined" && "AudioContext" in window) {
@@ -66,11 +83,29 @@ class SpatialAudioImpl {
     // Create oscillator
     const osc = this.ctx.createOscillator();
     osc.type = oscType;
-    osc.frequency.setValueAtTime(baseFreq, now);
+    if (this.smoothingEnabled && this.lastFreq !== null) {
+      osc.frequency.setValueAtTime(this.lastFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(baseFreq, 1),
+        now + SpatialAudioImpl.TRANSITION_S
+      );
+    } else {
+      osc.frequency.setValueAtTime(baseFreq, now);
+    }
 
     // Create stereo panner
     const panner = this.ctx.createStereoPanner();
-    panner.pan.setValueAtTime(pan, now);
+    if (this.smoothingEnabled && this.lastPan !== null) {
+      panner.pan.setValueAtTime(this.lastPan, now);
+      panner.pan.linearRampToValueAtTime(
+        pan,
+        now + SpatialAudioImpl.TRANSITION_S
+      );
+    } else {
+      panner.pan.setValueAtTime(pan, now);
+    }
+    this.lastPan = pan;
+    this.lastFreq = baseFreq;
 
     // Create gain node for envelope (avoid clicks)
     const gain = this.ctx.createGain();
@@ -90,6 +125,8 @@ class SpatialAudioImpl {
   dispose() {
     this.ctx?.close();
     this.ctx = null;
+    this.lastPan = null;
+    this.lastFreq = null;
   }
 }
 
