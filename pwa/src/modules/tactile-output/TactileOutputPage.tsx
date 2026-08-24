@@ -485,6 +485,17 @@ export default function TactileOutputPage() {
                 className={`${textareaClass} min-h-36`}
                 spellCheck={false}
               />
+              {text.trim().length === 0 && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  data-testid="tactile-empty-text"
+                  className="text-sm text-stone-400 mt-2 px-3 py-2 rounded-lg bg-surface-2 border border-surface-border leading-relaxed"
+                >
+                  No text yet. Paste from the clipboard, upload a .txt or .md file, or type above to
+                  generate braille frames.
+                </p>
+              )}
               {/* Visually hidden file picker; the Upload button triggers click().
                   accept narrows the system picker, but the adapter still validates
                   extension + MIME because mobile browsers ignore accept hints. */}
@@ -772,7 +783,7 @@ export default function TactileOutputPage() {
                 Export History
               </h2>
               {exportHistory.length === 0 ? (
-                <p className="text-sm text-stone-400">
+                <p className="text-sm text-stone-400" role="status" aria-live="polite">
                   No exports yet this session. Copy, save, or send frames and they will be
                   listed here — Replay loads that text back into the editor.
                 </p>

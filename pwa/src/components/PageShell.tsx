@@ -131,9 +131,9 @@ export function SectionLabel({ label, className = "" }: { label: string; classNa
  *   className={isActive ? toggleActive : toggleInactive}
  */
 export const toggleActive =
-  "min-h-touch rounded-lg border bg-primary-500/20 border-primary-400/60 text-primary-100 font-semibold";
+  "min-h-touch rounded-lg border bg-primary-500/20 border-primary-400/60 text-primary-100 font-semibold focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0";
 export const toggleInactive =
-  "min-h-touch rounded-lg border bg-surface-2 border-surface-border text-stone-400 hover:text-stone-200 hover:bg-surface-3 font-semibold transition-colors";
+  "min-h-touch rounded-lg border bg-surface-2 border-surface-border text-stone-400 hover:text-stone-200 hover:bg-surface-3 font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0";
 
 /** Shared textarea / readonly-output style. */
 export const textareaClass =

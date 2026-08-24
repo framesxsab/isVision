@@ -12,6 +12,7 @@ import {
 } from "./readingHelpers";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Skeleton } from "@/components/Skeleton";
 import {
   IconArrowLeft,
   IconBraille,
@@ -366,6 +367,18 @@ export default function ReaderPage() {
     }
   };
 
+  // Retry prefers the loaded URL, then falls back to the input box.
+  const retryLastLoad = useCallback(() => {
+    const raw = url || urlInput.trim();
+    if (!raw) {
+      announce("Enter a URL first, then try again.");
+      return;
+    }
+    const target = raw.startsWith("http") ? raw : `https://${raw}`;
+    announce("Trying again");
+    loadUrl(target);
+  }, [announce, loadUrl, url, urlInput]);
+
   // Escape user-provided text before wrapping it in HTML for loadContent.
   // The text comes from AI Vision output, which is a remote source — we won't
   // let it inject markup into the Reader DOM.
@@ -418,7 +431,18 @@ export default function ReaderPage() {
       {/* Error */}
       {error && (
         <div className="px-4 py-3 bg-red-900/30 border-b border-red-800" role="alert">
-          <p className="text-red-300 max-w-lg mx-auto">{error}</p>
+          <div className="max-w-lg mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-red-300 flex-1">{error}</p>
+            <Button
+              variant="secondary"
+              onClick={retryLastLoad}
+              aria-label="Try loading the article again"
+              data-testid="reader-retry-load"
+              className="sm:w-auto"
+            >
+              Try again
+            </Button>
+          </div>
         </div>
       )}
 
@@ -497,7 +521,7 @@ export default function ReaderPage() {
                     <li key={h.id} style={{ paddingLeft: `${(h.level - 1) * 16}px` }}>
                       <button
                         onClick={() => jumpToHeading(h.index)}
-                        className="text-left text-gray-300 hover:text-primary-400 py-1 min-h-touch flex items-center w-full"
+                        className="text-left text-gray-300 hover:text-primary-400 py-1 min-h-touch flex items-center w-full rounded focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
                       >
                         {h.text}
                       </button>
@@ -515,8 +539,11 @@ export default function ReaderPage() {
 
           {/* Article body */}
           {isLoading && (
-            <div className="flex justify-center py-20">
-              <LoadingSpinner label="Loading article..." size="lg" />
+            <div className="py-10 space-y-8" aria-busy="true">
+              <div className="flex justify-center">
+                <LoadingSpinner label="Loading article..." size="lg" />
+              </div>
+              <Skeleton decorative lines={5} />
             </div>
           )}
 
@@ -532,9 +559,12 @@ export default function ReaderPage() {
             />
           ) : (
             !isLoading && !error && (
-              <div className="text-center text-gray-400 py-20">
+              <div className="text-center text-gray-400 py-20" role="status" aria-live="polite">
                 <p className="text-xl mb-2">Enter a URL above to start reading</p>
                 <p className="text-sm">
+                  Paste any webpage address into the box at the top of this page, then press Load.
+                </p>
+                <p className="text-sm mt-2">
                   Keyboard: Space = play/pause, ←→ = paragraphs,
                   Alt+←→ = sentences, ↑↓ or S/T = speed, Esc = home
                 </p>

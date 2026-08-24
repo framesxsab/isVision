@@ -13,11 +13,15 @@ export function LoadingSpinner({ label = "Loading", size = "md" }: LoadingSpinne
   return (
     <div className="flex flex-col items-center justify-center gap-3" role="status" aria-live="polite">
       <div
-        className={`${sizes[size]} border-gray-600 border-t-primary-400 rounded-full animate-spin`}
+        className={`${sizes[size]} border-gray-600 border-t-primary-400 rounded-full motion-safe:animate-spin`}
         aria-hidden="true"
       />
-      <span className="text-gray-400 text-sm">{label}</span>
-      <span className="sr-only">{label}, please wait.</span>
+      {label ? (
+        <>
+          <span className="text-gray-400 text-sm">{label}</span>
+          <span className="sr-only">{label}, please wait.</span>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -939,7 +939,16 @@ function OfflineReadinessPanel({
         </p>
       )}
 
-      <ul className="space-y-2" aria-label="Offline-readiness checklist">
+      <ul className="space-y-2" aria-label="Offline-readiness checklist" aria-busy={busy || undefined}>
+        {busy && !report && (
+          <li className="surface-card border border-surface-border rounded-xl p-3" data-testid="readiness-skeleton">
+            <span className="sr-only" role="status">Checking offline readiness…</span>
+            <div aria-hidden="true" className="space-y-2">
+              <div className="h-4 w-1/3 rounded bg-surface-3 motion-safe:animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-surface-3 motion-safe:animate-pulse" />
+            </div>
+          </li>
+        )}
         <ReadinessRow
           label="App shell"
           status={report?.appShell ?? "unknown"}
