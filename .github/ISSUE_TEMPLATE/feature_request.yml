@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or improvement for isVisible
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome, especially from blind and low-vision users describing real barriers. The more concrete the use case, the easier it is to prioritize.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What barrier or friction does this solve, and who hits it? Describe the task a user is trying to complete.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you want to happen. Include which module it affects (Touch Explorer, AI Vision, Reader, Voice Navigation, Tactile Lab, Drill, Graphics) if you know.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, workarounds, or existing tools you have tried.
+    validations:
+      required: false
+  - type: textarea
+    id: a11y-impact
+    attributes:
+      label: Accessibility impact
+      description: How should this behave with a keyboard alone? What should NVDA, Narrator, VoiceOver, or TalkBack announce when it runs?
+    validations:
+      required: true

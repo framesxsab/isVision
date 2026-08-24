@@ -105,6 +105,7 @@ Two Arduino firmware targets accept the compact protocol the PWA emits:
 
 - [firmware/single-cell-arduino/](firmware/single-cell-arduino/) — one six-dot braille cell (Phase 2).
 - [firmware/cell-strip-arduino/](firmware/cell-strip-arduino/) — a 4–8-cell strip on 74HC595 shift registers with navigation buttons and a braille keyboard that report back as `IN` input lines (Phase 3).
+- [Hardware honesty — scope and BRLTTY relay vs driver](docs/hardware-honesty.md)
 
 Generate prototype tactile frames from the command line:
 

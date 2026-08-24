@@ -89,7 +89,7 @@ test.describe("Touch Explorer", () => {
   });
 
   test("Escape leaves Touch Explorer and returns home", async ({ page }) => {
-    await page.getByRole("application").focus();
+    await page.getByRole("region", { name: /Touch exploration area/ }).focus();
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: /^isVisible$/i })).toBeVisible();

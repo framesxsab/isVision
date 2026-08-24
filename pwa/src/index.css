@@ -112,3 +112,17 @@
     background: var(--bg);
   }
 }
+
+/* Unlayered on purpose: unlayered rules win the cascade over @layer utilities,
+   so this kill-switch overrides Tailwind animation and transition utilities.
+   Do not move into @layer base — it would lose to utility-layer durations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

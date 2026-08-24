@@ -1,3 +1,7 @@
+> **Status: SHIPPED / ARCHIVED — 2026-08-24**
+> This spec described P0–P3 work that is now implemented in the PWA (Onboarding recovery, Device Capabilities panel, Reader→Tactile handoff, Hardware Emulator, etc.). Kept for provenance; do not use as a TODO list. See `docs/research/oss-release-research.md` §5 and `docs/hardware-honesty.md` for current scope.
+---
+
 # Development Improvement Spec
 
 ## Purpose
