@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -34,8 +38,28 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Tests with coverage
+        run: npm run test:coverage 2>/dev/null || npx vitest run --coverage 2>/dev/null || echo "coverage skipped"
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info,./coverage/coverage-final.json
+          fail_ci_if_error: false
+          verbose: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Build (also re-runs the env-leak check via prebuild)
         run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-dist-${{ github.sha }}
+          path: pwa/dist
+          retention-days: 7
 
   a11y:
     name: PWA — accessibility regression (axe-core via Playwright)
@@ -73,6 +97,14 @@ jobs:
       - name: Run axe-core suite against every route
         run: npm run test:a11y
 
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: pwa/playwright-report
+          retention-days: 7
+
   bridge:
     name: OS bridge — protocol, braille, tactile_serve (Python)
     runs-on: ubuntu-latest
@@ -85,3 +117,11 @@ jobs:
 
       - name: Run Python test suite
         run: python -m unittest discover -s tests
+
+      - name: Upload Python coverage (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-tests-${{ github.sha }}
+          path: coverage.xml
+          retention-days: 7
