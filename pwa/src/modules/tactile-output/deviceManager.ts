@@ -4,6 +4,7 @@ import type { DeviceDescriptor } from "./registry";
 import "./devices/mockDevice";
 import "./devices/virtualDevice";
 import "./devices/brlttyRelay";
+import "./devices/hidDevice";
 
 export class DeviceManager {
   private current: FrameSink | null = null;
