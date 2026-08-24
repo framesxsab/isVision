@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "isVisible Device Manifest",
+  "type": "object",
+  "required": ["name", "sink", "cells", "dots"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "version": { "type": "string" },
+    "sink": { "type": "string" },
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "cells": { "type": "integer", "minimum": 1, "maximum": 80 },
+    "dots": { "enum": [6, 8] },
+    "requires": { "type": "array", "items": { "type": "string", "enum": ["WebSerial", "WebHID", "WebBluetooth"] } }
+  }
+}

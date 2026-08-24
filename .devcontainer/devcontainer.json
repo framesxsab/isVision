@@ -1,0 +1,12 @@
+{
+  "name": "isVisible",
+  "dockerFile": "../Dockerfile",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "ms-python.python"]
+    }
+  },
+  "postCreateCommand": "cd pwa && npm ci && python -m pip install --quiet -r requirements.txt 2>/dev/null || true",
+  "forwardPorts": [5173],
+  "remoteUser": "node"
+}

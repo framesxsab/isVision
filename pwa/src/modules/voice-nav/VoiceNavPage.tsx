@@ -186,6 +186,7 @@ export default function VoiceNavPage() {
           <div className="flex flex-col items-center lg:items-start lg:w-64 shrink-0">
             {/* Big mic button */}
             <button
+              aria-busy={isListening}
               onClick={isListening ? handleStopListening : handleListen}
               className={`
                 relative w-36 h-36 lg:w-40 lg:h-40

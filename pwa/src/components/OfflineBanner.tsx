@@ -19,8 +19,8 @@ export function OfflineBanner() {
   return (
     <div
       className="bg-yellow-900/80 text-yellow-200 text-center px-4 py-2 text-sm"
-      role="alert"
-      aria-live="assertive"
+      role="status"
+      aria-live="polite"
     >
       You are offline. Some features require internet.
     </div>

@@ -148,7 +148,7 @@ function ToggleRow({
 }) {
   return (
     <label
-      className={`flex items-center justify-between gap-4 min-h-touch px-3 -mx-3 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] ${
+      className={`flex items-center justify-between gap-4 min-h-touch px-3 -mx-3 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.03] focus-within:ring-2 focus-within:ring-primary-400 focus-within:ring-offset-2 focus-within:ring-offset-surface-0 ${
         disabled ? "opacity-60 cursor-not-allowed" : ""
       }`}
     >
@@ -159,6 +159,8 @@ function ToggleRow({
       <span className="relative inline-flex shrink-0">
         <input
           type="checkbox"
+          role="switch"
+          aria-checked={checked}
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           disabled={disabled}
@@ -937,7 +939,16 @@ function OfflineReadinessPanel({
         </p>
       )}
 
-      <ul className="space-y-2" aria-label="Offline-readiness checklist">
+      <ul className="space-y-2" aria-label="Offline-readiness checklist" aria-busy={busy || undefined}>
+        {busy && !report && (
+          <li className="surface-card border border-surface-border rounded-xl p-3" data-testid="readiness-skeleton">
+            <span className="sr-only" role="status">Checking offline readiness…</span>
+            <div aria-hidden="true" className="space-y-2">
+              <div className="h-4 w-1/3 rounded bg-surface-3 motion-safe:animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-surface-3 motion-safe:animate-pulse" />
+            </div>
+          </li>
+        )}
         <ReadinessRow
           label="App shell"
           status={report?.appShell ?? "unknown"}

@@ -8,7 +8,7 @@
  * Deduplicates: only speaks when the element changes.
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { getElementAt, getElementRole, getElementBounds } from "@/core/utils/domInspector";
 import { describeElement } from "@/core/utils/elementDescriber";
 import { speechEngine } from "@/core/audio/SpeechEngine";
@@ -38,6 +38,11 @@ export function useTouchExplorer(
 
   const hapticEnabled = useSettingsStore((s) => s.hapticEnabled);
   const spatialEnabled = useSettingsStore((s) => s.spatialAudioEnabled);
+  const hapticIntensity = useSettingsStore((s) => s.hapticIntensity);
+
+  useEffect(() => {
+    hapticEngine.setIntensity(hapticIntensity);
+  }, [hapticIntensity]);
 
   const handleTouch = useCallback(
     (x: number, y: number) => {

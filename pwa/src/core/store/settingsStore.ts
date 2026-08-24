@@ -41,6 +41,8 @@ interface SettingsState {
   // Features
   hapticEnabled: boolean;
   spatialAudioEnabled: boolean;
+  // Vibration duration multiplier: 0.5 gentle / 1.0 standard / 1.5 strong
+  hapticIntensity: number;
 
   // Privacy
   // When false, AI Vision keeps only the most recent description in memory.
@@ -68,6 +70,7 @@ interface SettingsState {
   setFontSize: (size: number) => void;
   setHapticEnabled: (enabled: boolean) => void;
   setSpatialAudioEnabled: (enabled: boolean) => void;
+  setHapticIntensity: (intensity: number) => void;
   setVisionRetainHistory: (enabled: boolean) => void;
   setVoiceConfirmAloud: (enabled: boolean) => void;
   completeOnboarding: () => void;
@@ -89,6 +92,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       hapticEnabled: true,
       spatialAudioEnabled: true,
+      hapticIntensity: 1.0,
 
       visionRetainHistory: true,
 
@@ -106,6 +110,8 @@ export const useSettingsStore = create<SettingsState>()(
       setFontSize: (size) => set({ fontSize: Math.max(18, Math.min(32, size)) }),
       setHapticEnabled: (enabled) => set({ hapticEnabled: enabled }),
       setSpatialAudioEnabled: (enabled) => set({ spatialAudioEnabled: enabled }),
+      setHapticIntensity: (intensity) =>
+        set({ hapticIntensity: Math.max(0.5, Math.min(1.5, intensity)) }),
       setVisionRetainHistory: (enabled) => set({ visionRetainHistory: enabled }),
       setVoiceConfirmAloud: (enabled) => set({ voiceConfirmAloud: enabled }),
       completeOnboarding: () => set({ onboardingComplete: true }),
@@ -116,12 +122,13 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "isvisible-settings",
-      version: 5,
+      version: 6,
       // v0 → v1: add setupStatus default.
       // v1 → v2: add visionRetainHistory default.
       // v2 → v3: add lastSession default (null).
       // v3 → v4: add voiceConfirmAloud default (true).
       // v4 → v5: add setupStatus.offlineTablesCached default.
+      // v5 → v6: add hapticIntensity default (1.0).
       // Keep each step tolerant — any missing field just gets the default appended.
       migrate: (persisted, version) => {
         const base = (persisted ?? {}) as Partial<SettingsState>;
@@ -149,6 +156,9 @@ export const useSettingsStore = create<SettingsState>()(
             ...next.setupStatus,
             offlineTablesCached: false,
           };
+        }
+        if (version < 6 || typeof next.hapticIntensity !== "number") {
+          next.hapticIntensity = 1.0;
         }
         return next as SettingsState;
       },

@@ -34,6 +34,7 @@ const DEFAULT_PATTERN = [20];
 
 class HapticEngineImpl {
   private enabled = true;
+  private intensity = 1.0;
 
   get isSupported(): boolean {
     return platform.supportsVibration;
@@ -43,17 +44,27 @@ class HapticEngineImpl {
     this.enabled = enabled;
   }
 
+  /** Scale all pattern durations (vibrations and pauses) by this multiplier. */
+  setIntensity(intensity: number) {
+    this.intensity = Math.max(0.5, Math.min(1.5, intensity));
+  }
+
   /** Vibrate with the pattern associated with the given ARIA role. */
   vibrateForRole(role: string) {
     if (!this.enabled || !this.isSupported) return;
     const pattern = HAPTIC_PATTERNS[role] ?? DEFAULT_PATTERN;
-    navigator.vibrate(pattern);
+    navigator.vibrate(this.scalePattern(pattern));
   }
 
   /** Play a custom vibration pattern. */
   vibrate(pattern: number[]) {
     if (!this.enabled || !this.isSupported) return;
-    navigator.vibrate(pattern);
+    navigator.vibrate(this.scalePattern(pattern));
+  }
+
+  private scalePattern(pattern: number[]): number[] {
+    if (this.intensity === 1.0) return pattern;
+    return pattern.map((ms) => Math.max(1, Math.round(ms * this.intensity)));
   }
 
   /** Stop any ongoing vibration. */

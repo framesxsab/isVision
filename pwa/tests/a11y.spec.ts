@@ -39,12 +39,28 @@ for (const route of ROUTES) {
     await page.waitForLoadState("networkidle");
 
     const results = await new AxeBuilder({ page })
-      // WCAG 2.1 AA is the contractual minimum for accessibility products.
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
 
-    // Only fail on critical or serious. Moderate/minor we surface as
-    // warnings via the test output but don't block PRs.
+    const headingIssues: string[] = await page.evaluate(() => {
+      const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6"));
+      const issues: string[] = [];
+      let lastLevel = 0;
+      for (const el of headings) {
+        const level = parseInt(el.tagName[1]!, 10);
+        const text = (el.textContent ?? "").trim().slice(0, 40);
+        if (lastLevel === 0 && level !== 1) issues.push(`First heading should be h1, got h${level} "${text}"`);
+        else if (level > lastLevel + 1) issues.push(`Skipped h${lastLevel + 1}, got h${level} "${text}"`);
+        lastLevel = level;
+      }
+      const h1Count = headings.filter((h) => h.tagName === "H1").length;
+      if (h1Count !== 1) issues.push(`Expected 1 h1, found ${h1Count}`);
+      return issues;
+    });
+    if (headingIssues.length > 0) {
+      throw new Error(`Heading validator: ${headingIssues.join("; ")}`);
+    }
+
     const blocking = results.violations.filter(
       (v) => v.impact === "critical" || v.impact === "serious"
     );

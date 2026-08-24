@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useVisionAssistant } from "./useVisionAssistant";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Skeleton } from "@/components/Skeleton";
 import { IconUpload, IconRefresh, IconCaptureCircle } from "@/components/Icons";
 import { PageShell } from "@/components/PageShell";
 import { speechEngine } from "@/core/audio/SpeechEngine";
@@ -192,7 +193,7 @@ export default function VisionAssistantPage() {
     >
 
       {/* Camera feed */}
-      <div className="flex-1 relative bg-black">
+      <div className="flex-1 relative bg-black" aria-busy={state === "analyzing"}>
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
@@ -229,6 +230,25 @@ export default function VisionAssistantPage() {
       </div>
 
       {/* Description panel */}
+      {state === "analyzing" && (
+        <div
+          className="bg-surface-1 border-t border-surface-border px-4 py-4"
+          aria-busy="true"
+          data-testid="vision-analyzing-skeleton"
+        >
+          <div className="max-w-lg mx-auto">
+            <Skeleton label="Analyzing image. The description will appear here." lines={3} />
+          </div>
+        </div>
+      )}
+      {!description && state !== "analyzing" && !error && history.length === 0 && (
+        <div className="bg-surface-1 border-t border-surface-border px-4 py-4" role="status" aria-live="polite">
+          <p className="max-w-lg mx-auto text-sm text-stone-400 text-center leading-relaxed">
+            No descriptions yet. Point your camera at something and tap the large capture button,
+            or tap Upload to pick a photo.
+          </p>
+        </div>
+      )}
       {description && (
         <div className="bg-surface-1 border-t border-surface-border px-4 py-4 max-h-56 overflow-y-auto">
           <div className="max-w-lg mx-auto">
@@ -339,7 +359,7 @@ export default function VisionAssistantPage() {
       {history.length > 1 && (
         <div className="bg-surface-1 border-t border-surface-border px-4 py-3">
           <details className="max-w-3xl mx-auto">
-            <summary className="text-sm text-stone-400 cursor-pointer min-h-touch flex items-center select-none">
+            <summary className="text-sm text-stone-400 cursor-pointer min-h-touch flex items-center select-none rounded-lg focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0">
               Previous descriptions ({history.length})
             </summary>
             <ul className="mt-2 space-y-2">
@@ -347,7 +367,7 @@ export default function VisionAssistantPage() {
                 <li key={entry.id}>
                   <button
                     onClick={() => speechEngine.interrupt(entry.description)}
-                    className="w-full text-left bg-surface-2 border border-surface-border rounded-xl p-3 text-sm text-stone-300 hover:bg-surface-3 min-h-touch transition-colors"
+                    className="w-full text-left bg-surface-2 border border-surface-border rounded-xl p-3 text-sm text-stone-300 hover:bg-surface-3 min-h-touch transition-colors focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0"
                     aria-label={`Replay: ${entry.description.slice(0, 50)}...`}
                   >
                     <span className="text-stone-500 text-xs block mb-1">

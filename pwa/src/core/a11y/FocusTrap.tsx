@@ -12,6 +12,7 @@ export function FocusTrap({ children, active = true }: FocusTrapProps) {
   useEffect(() => {
     if (!active || !containerRef.current) return;
 
+    const trigger = document.activeElement as HTMLElement | null;
     const container = containerRef.current;
     const focusableSelector =
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -40,7 +41,14 @@ export function FocusTrap({ children, active = true }: FocusTrapProps) {
     const firstFocusable = container.querySelector<HTMLElement>(focusableSelector);
     firstFocusable?.focus();
 
-    return () => container.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      container.removeEventListener("keydown", handleKeyDown);
+      // Restore focus to the element that opened the dialog
+      if (trigger && typeof trigger.focus === "function") {
+        // rAF avoids focus race with React unmount
+        requestAnimationFrame(() => trigger.focus());
+      }
+    };
   }, [active]);
 
   return (

@@ -13,7 +13,12 @@ import { useTouchExplorer } from "./useTouchExplorer";
 import type { TouchExplorerState } from "./useTouchExplorer";
 import { TouchSurface } from "./TouchSurface";
 import { ElementHighlight } from "./ElementHighlight";
-import { PageShell } from "@/components/PageShell";
+import { RegionLegend } from "./RegionLegend";
+import { CalibrationPanel } from "./CalibrationPanel";
+import { TutorialPanel } from "./TutorialPanel";
+import { HapticIntensityControl } from "./HapticIntensityControl";
+import { PerfOverlay } from "./PerfOverlay";
+import { PageShell, sectionCard } from "@/components/PageShell";
 import { speechEngine } from "@/core/audio/SpeechEngine";
 import { useAnnounce } from "@/core/a11y/AriaLive";
 import { describeElement } from "@/core/utils/elementDescriber";
@@ -31,6 +36,7 @@ export default function TouchExplorerPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [highlightElement, setHighlightElement] = useState<Element | null>(null);
   const [lastDescription, setLastDescription] = useState("");
+  const [perfVisible, setPerfVisible] = useState(false);
   const announce = useAnnounce();
   const navigate = useNavigate();
 
@@ -142,7 +148,27 @@ export default function TouchExplorerPage() {
   );
 
   return (
-    <PageShell title="Touch Explorer" accent="orange" className="flex flex-col">
+    <PageShell
+      title="Touch Explorer"
+      accent="orange"
+      className="flex flex-col"
+      headerRight={
+        <button
+          type="button"
+          aria-pressed={perfVisible}
+          aria-label={perfVisible ? "Hide performance overlay" : "Show performance overlay"}
+          onClick={() => setPerfVisible((v) => !v)}
+          className="
+            min-h-touch min-w-touch rounded-lg px-2
+            text-[11px] font-mono font-semibold tracking-tight
+            text-stone-400 hover:text-stone-100 transition-colors
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0
+          "
+        >
+          FPS
+        </button>
+      }
+    >
       {/* Status bar showing current element */}
       {lastDescription && (
         <div
@@ -179,6 +205,29 @@ export default function TouchExplorerPage() {
 
       {/* Highlight overlay */}
       <ElementHighlight element={highlightElement} />
+
+      {/* ── Phase 3 flagship additions (all below the exploration area,
+             so nothing intercepts touches or hovers on the surface) ── */}
+
+      <div className="px-4 pb-8 max-w-3xl w-full mx-auto">
+        <section aria-label="Feedback settings" className={`${sectionCard} mt-4`}>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-400 mb-3">
+            Feedback settings
+          </h2>
+          <p className="text-stone-400 text-sm mb-3">
+            Choose how strong vibrations feel when you explore.
+          </p>
+          <HapticIntensityControl />
+        </section>
+
+        <RegionLegend containerRef={containerRef} />
+
+        <CalibrationPanel />
+
+        <TutorialPanel />
+      </div>
+
+      <PerfOverlay containerRef={containerRef} visible={perfVisible} />
     </PageShell>
   );
 }

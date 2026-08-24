@@ -27,6 +27,9 @@ const TactileOutputPage = lazy(() => import("@/modules/tactile-output/TactileOut
 const TactileDrillPage = lazy(() => import("@/modules/tactile-output/TactileDrillPage"));
 const TactileGraphicsPage = lazy(() => import("@/modules/tactile-graphics/TactileGraphicsPage"));
 const HardwareEmulatorPage = lazy(() => import("@/modules/tactile-output/HardwareEmulatorPage"));
+const DeviceDiagnosticsPage = lazy(() => import("@/pages/DeviceDiagnosticsPage"));
+const ResearchPlaygroundPage = lazy(() => import("@/pages/ResearchPlaygroundPage"));
+const ShortcutsPage = lazy(() => import("@/pages/ShortcutsPage"));
 
 function PageLoader() {
   return (
@@ -134,6 +137,30 @@ export default function App() {
                 element={
                   <ErrorBoundary moduleName="Hardware Emulator">
                     <RequireOnboarding><HardwareEmulatorPage /></RequireOnboarding>
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/device-diagnostics"
+                element={
+                  <ErrorBoundary moduleName="Device Diagnostics">
+                    <RequireOnboarding><DeviceDiagnosticsPage /></RequireOnboarding>
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/research-playground"
+                element={
+                  <ErrorBoundary moduleName="Research Playground">
+                    <RequireOnboarding><ResearchPlaygroundPage /></RequireOnboarding>
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/shortcuts"
+                element={
+                  <ErrorBoundary moduleName="Shortcuts">
+                    <RequireOnboarding><ShortcutsPage /></RequireOnboarding>
                   </ErrorBoundary>
                 }
               />

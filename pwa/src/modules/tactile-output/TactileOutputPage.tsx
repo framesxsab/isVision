@@ -34,6 +34,13 @@ import {
   readTextFile,
   takeTactileHandoff,
 } from "./inputAdapters";
+import {
+  formatExportTime,
+  recordExport,
+  type ExportAction,
+  type ExportHistoryEntry,
+} from "./exportHistory";
+import { ScaledPreview, ZoomControls, type ZoomLevel } from "./previewZoom";
 import { useTactileStore } from "./tactileStore";
 
 type SerialPortLike = {
@@ -127,6 +134,12 @@ export default function TactileOutputPage() {
   // translator effect watches it so the click triggers a fresh attempt
   // without us having to expose an imperative handle.
   const [retryToken, setRetryToken] = useState(0);
+
+  // Phase 2 UX polish: preview zoom level and the session export history
+  // (last 5 copy/save/send actions, replayable). Both are transient — zoom
+  // resets per visit and history is intentionally not persisted.
+  const [zoom, setZoom] = useState<ZoomLevel>(1);
+  const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>([]);
 
   // Browser-feature detection. Memoised so re-renders don't re-probe globals
   // and the consumer can compare report references cheaply.
@@ -255,9 +268,27 @@ export default function TactileOutputPage() {
     announce(message);
   };
 
+  const recordExportNow = (action: ExportAction) => {
+    setExportHistory((history) =>
+      recordExport(history, {
+        at: Date.now(),
+        action,
+        format: outputFormat,
+        cellCount: cells.length,
+        text,
+      })
+    );
+  };
+
+  const replayExport = (entry: ExportHistoryEntry) => {
+    setText(entry.text);
+    updateStatus(`Replayed ${entry.action} from ${formatExportTime(entry.at)}.`);
+  };
+
   const copyFrames = async () => {
     try {
       await navigator.clipboard.writeText(activeOutput);
+      recordExportNow("copy");
       updateStatus(`${outputFormat === "json" ? "JSON" : "Compact"} output copied.`);
       speechEngine.interrupt("Output copied.");
     } catch {
@@ -275,6 +306,7 @@ export default function TactileOutputPage() {
     anchor.download = `isvisible-tactile-frames.${extension}`;
     anchor.click();
     URL.revokeObjectURL(url);
+    recordExportNow("save");
     updateStatus("Frame file created.");
   };
 
@@ -332,6 +364,7 @@ export default function TactileOutputPage() {
         }
       }
 
+      recordExportNow("send");
       updateStatus(`Sent ${frames.length} compact frames over serial.`);
       speechEngine.interrupt(`Sent ${frames.length} frames.`);
     } catch (err) {
@@ -452,6 +485,17 @@ export default function TactileOutputPage() {
                 className={`${textareaClass} min-h-36`}
                 spellCheck={false}
               />
+              {text.trim().length === 0 && (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  data-testid="tactile-empty-text"
+                  className="text-sm text-stone-400 mt-2 px-3 py-2 rounded-lg bg-surface-2 border border-surface-border leading-relaxed"
+                >
+                  No text yet. Paste from the clipboard, upload a .txt or .md file, or type above to
+                  generate braille frames.
+                </p>
+              )}
               {/* Visually hidden file picker; the Upload button triggers click().
                   accept narrows the system picker, but the adapter still validates
                   extension + MIME because mobile browsers ignore accept hints. */}
@@ -657,22 +701,27 @@ export default function TactileOutputPage() {
           {/* Right column: Braille Preview, Dot Cells, Output */}
           <div className="space-y-6 mt-6 lg:mt-0">
             <section aria-labelledby="preview-heading">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
                 <h2 id="preview-heading" className="text-lg font-semibold text-white">
                   Braille Preview
                 </h2>
-                <Button variant="secondary" onClick={speakPreview} aria-keyshortcuts="V">
-                  Speak (V)
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ZoomControls value={zoom} onChange={setZoom} />
+                  <Button variant="secondary" onClick={speakPreview} aria-keyshortcuts="V">
+                    Speak (V)
+                  </Button>
+                </div>
               </div>
 
               <div
                 className="bg-surface-1 border border-surface-border rounded-xl p-4"
                 aria-label={`${cells.length} braille cells generated`}
               >
-                <p className="text-4xl leading-relaxed break-words" lang="zxx">
-                  {braillePreview || "No cells"}
-                </p>
+                <ScaledPreview zoom={zoom}>
+                  <p className="text-4xl leading-relaxed break-words" lang="zxx">
+                    {braillePreview || "No cells"}
+                  </p>
+                </ScaledPreview>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
@@ -726,6 +775,41 @@ export default function TactileOutputPage() {
                     Open hardware emulator
                   </Button>
                 </div>
+              )}
+            </section>
+
+            <section aria-labelledby="history-heading">
+              <h2 id="history-heading" className="text-lg font-semibold text-white mb-3">
+                Export History
+              </h2>
+              {exportHistory.length === 0 ? (
+                <p className="text-sm text-stone-400" role="status" aria-live="polite">
+                  No exports yet this session. Copy, save, or send frames and they will be
+                  listed here — Replay loads that text back into the editor.
+                </p>
+              ) : (
+                <ul className="space-y-2" data-testid="export-history">
+                  {exportHistory.map((entry, index) => (
+                    <li
+                      key={`${entry.at}-${index}`}
+                      className="bg-surface-2 border border-surface-border rounded-lg p-3 flex items-center justify-between gap-3"
+                    >
+                      <span className="text-sm min-w-0">
+                        <span className="font-semibold text-white capitalize">{entry.action}</span>{" "}
+                        <span className="text-stone-400">
+                          · {entry.format} · {entry.cellCount} cells · {formatExportTime(entry.at)}
+                        </span>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        onClick={() => replayExport(entry)}
+                        aria-label={`Replay ${entry.action} from ${formatExportTime(entry.at)}: load its ${entry.cellCount}-cell text back into the editor`}
+                      >
+                        Replay
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           </div>

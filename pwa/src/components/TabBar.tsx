@@ -43,6 +43,7 @@ export function TabBar() {
                   relative flex-1 flex items-center justify-center gap-2
                   min-h-touch px-4 rounded-full
                   text-sm font-medium transition-all duration-200
+                  focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0
                   ${
                     isActive
                       ? "bg-primary-500/15 text-primary-200 ring-1 ring-primary-400/30"

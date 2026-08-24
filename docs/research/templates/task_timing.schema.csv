@@ -1,0 +1,6 @@
+participant_id,task_id,task_name,start_iso,end_iso,duration_s,success,assist_level,notes
+P01,A,Reader_article_to_Tactile,2026-08-24T10:00:00Z,2026-08-24T10:04:30Z,270,1,0,Completed without help
+P01,B,Drill_5_letters,2026-08-24T10:05:00Z,2026-08-24T10:07:15Z,135,1,1,Needed prompt for group size
+# assist_level: 0 none, 1 verbal hint, 2 hands-on
+# success: 1 yes, 0 no
+# Do not commit PII — IDs only

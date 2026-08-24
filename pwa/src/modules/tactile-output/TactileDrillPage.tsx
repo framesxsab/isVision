@@ -596,7 +596,12 @@ export default function TactileDrillPage() {
               Export CSV
             </Button>
           </div>
-          <p className="text-sm text-stone-300 mb-3" data-testid="drill-history-count">
+          <p
+            className="text-sm text-stone-300 mb-3"
+            role="status"
+            aria-live="polite"
+            data-testid="drill-history-count"
+          >
             {attemptHistory.length === 0
               ? "No attempts yet. Submit one to start building your history."
               : `${attemptHistory.length} attempt${attemptHistory.length === 1 ? "" : "s"} in this session.`}

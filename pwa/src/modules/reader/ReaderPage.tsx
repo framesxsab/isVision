@@ -3,11 +3,16 @@
  * URL input at top, article content in center, reading controls at bottom.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useReader } from "./useReader";
+import {
+  estimateReadingMinutes,
+  READER_SPEED_PRESETS,
+} from "./readingHelpers";
 import { Button } from "@/components/Button";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Skeleton } from "@/components/Skeleton";
 import {
   IconArrowLeft,
   IconBraille,
@@ -43,6 +48,14 @@ function isInteractiveShortcutTarget(target: EventTarget | null): boolean {
   );
 }
 
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-block px-1.5 py-0.5 rounded border border-surface-border bg-surface-2 text-stone-100 font-mono text-[11px] leading-none">
+      {children}
+    </kbd>
+  );
+}
+
 export default function ReaderPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,6 +84,9 @@ export default function ReaderPage() {
     isPaused,
     isLoading,
     error,
+    sentenceMode,
+    currentSentenceIndex,
+    currentSentences,
     loadUrl,
     loadContent,
     play,
@@ -81,8 +97,38 @@ export default function ReaderPage() {
     repeatChunk,
     restart,
     jumpToHeading,
+    nextSentence,
+    prevSentence,
+    toggleSentenceMode,
   } = useReader();
   const setLastSession = useSettingsStore((s) => s.setLastSession);
+
+  const [headingFilter, setHeadingFilter] = useState("");
+  const filteredHeadings = useMemo(() => {
+    const needle = headingFilter.trim().toLowerCase();
+    if (!needle) return headings.map((h, index) => ({ ...h, index }));
+    return headings
+      .map((h, index) => ({ ...h, index }))
+      .filter((h) => h.text.toLowerCase().includes(needle));
+  }, [headings, headingFilter]);
+
+  const readingMinutes = useMemo(
+    () => estimateReadingMinutes(chunks.join(" "), speechRate),
+    [chunks, speechRate]
+  );
+  const readingTimeLabel =
+    readingMinutes > 0 && readingMinutes < 1
+      ? "less than 1 min"
+      : `${Math.max(1, Math.round(readingMinutes))} min`;
+
+  const applySpeedPreset = useCallback(
+    (rate: number) => {
+      setSpeechRate(rate);
+      speechEngine.setRate(rate);
+      announce(`Speed ${rate.toFixed(1)}x`);
+    },
+    [announce, setSpeechRate]
+  );
 
   // Mirror the loaded URL + paragraph position into the persisted resume
   // slot. Skip during the initial render and skip if we have no URL (a
@@ -137,6 +183,19 @@ export default function ReaderPage() {
 
     // Keyboard shortcuts
     function handleKeyDown(e: KeyboardEvent) {
+      // Alt+Arrow = sentence navigation. Checked before the blanket
+      // modifier bail-out below.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.code === "ArrowRight") {
+          e.preventDefault();
+          nextSentence();
+        } else if (e.code === "ArrowLeft") {
+          e.preventDefault();
+          prevSentence();
+        }
+        return;
+      }
+
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
       if (isInteractiveShortcutTarget(e.target)) return;
 
@@ -169,12 +228,42 @@ export default function ReaderPage() {
           announce(`Speed ${newDown.toFixed(1)}x`);
           break;
         }
+        case "KeyT": {
+          e.preventDefault();
+          const faster = Math.min(3, speechRateRef.current + 0.2);
+          setSpeechRate(faster);
+          speechEngine.setRate(faster);
+          announce(`Speed ${faster.toFixed(1)}x`);
+          break;
+        }
+        case "KeyS": {
+          e.preventDefault();
+          const slower = Math.max(0.5, speechRateRef.current - 0.2);
+          setSpeechRate(slower);
+          speechEngine.setRate(slower);
+          announce(`Speed ${slower.toFixed(1)}x`);
+          break;
+        }
+        case "Escape":
+          e.preventDefault();
+          announce("Going home");
+          navigate("/");
+          break;
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [announce, togglePlayPause, nextChunk, prevChunk, setSpeechRate]);
+  }, [
+    announce,
+    togglePlayPause,
+    nextChunk,
+    prevChunk,
+    setSpeechRate,
+    nextSentence,
+    prevSentence,
+    navigate,
+  ]);
 
   useEffect(() => {
     function runReaderVoiceAction(action: VoiceAction | undefined) {
@@ -278,6 +367,18 @@ export default function ReaderPage() {
     }
   };
 
+  // Retry prefers the loaded URL, then falls back to the input box.
+  const retryLastLoad = useCallback(() => {
+    const raw = url || urlInput.trim();
+    if (!raw) {
+      announce("Enter a URL first, then try again.");
+      return;
+    }
+    const target = raw.startsWith("http") ? raw : `https://${raw}`;
+    announce("Trying again");
+    loadUrl(target);
+  }, [announce, loadUrl, url, urlInput]);
+
   // Escape user-provided text before wrapping it in HTML for loadContent.
   // The text comes from AI Vision output, which is a remote source — we won't
   // let it inject markup into the Reader DOM.
@@ -330,7 +431,18 @@ export default function ReaderPage() {
       {/* Error */}
       {error && (
         <div className="px-4 py-3 bg-red-900/30 border-b border-red-800" role="alert">
-          <p className="text-red-300 max-w-lg mx-auto">{error}</p>
+          <div className="max-w-lg mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-red-300 flex-1">{error}</p>
+            <Button
+              variant="secondary"
+              onClick={retryLastLoad}
+              aria-label="Try loading the article again"
+              data-testid="reader-retry-load"
+              className="sm:w-auto"
+            >
+              Try again
+            </Button>
+          </div>
         </div>
       )}
 
@@ -338,7 +450,16 @@ export default function ReaderPage() {
       <div className="flex-1 px-4 py-6 overflow-y-auto">
         <div className="max-w-lg mx-auto">
           {title && (
-            <h2 className="text-2xl font-bold text-white mb-4">{title}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1">{title}</h2>
+          )}
+
+          {chunks.length > 0 && (
+            <p
+              className="text-sm text-gray-400 mb-4"
+              aria-label={`Estimated reading time: ${readingTimeLabel} at ${speechRate.toFixed(1)}x speed`}
+            >
+              ≈ {readingTimeLabel} read at {speechRate.toFixed(1)}x speed
+            </p>
           )}
 
           {chunks.length > 0 && (
@@ -380,26 +501,49 @@ export default function ReaderPage() {
                 Table of Contents ({headings.length} headings)
               </summary>
               <nav aria-label="Table of contents" className="mt-3">
+                <label htmlFor="toc-filter" className="sr-only">
+                  Filter headings
+                </label>
+                <input
+                  id="toc-filter"
+                  type="search"
+                  value={headingFilter}
+                  onChange={(e) => setHeadingFilter(e.target.value)}
+                  placeholder="Filter headings"
+                  className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2 mb-2 text-sm"
+                  aria-describedby="toc-filter-results"
+                />
+                <span id="toc-filter-results" className="sr-only" role="status">
+                  {filteredHeadings.length} of {headings.length} headings shown
+                </span>
                 <ul className="space-y-1">
-                  {headings.map((h, i) => (
+                  {filteredHeadings.map((h) => (
                     <li key={h.id} style={{ paddingLeft: `${(h.level - 1) * 16}px` }}>
                       <button
-                        onClick={() => jumpToHeading(i)}
-                        className="text-left text-gray-300 hover:text-primary-400 py-1 min-h-touch flex items-center w-full"
+                        onClick={() => jumpToHeading(h.index)}
+                        className="text-left text-gray-300 hover:text-primary-400 py-1 min-h-touch flex items-center w-full rounded focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900"
                       >
                         {h.text}
                       </button>
                     </li>
                   ))}
                 </ul>
+                {filteredHeadings.length === 0 && (
+                  <p className="text-gray-400 text-sm py-2">
+                    No headings match “{headingFilter.trim()}”
+                  </p>
+                )}
               </nav>
             </details>
           )}
 
           {/* Article body */}
           {isLoading && (
-            <div className="flex justify-center py-20">
-              <LoadingSpinner label="Loading article..." size="lg" />
+            <div className="py-10 space-y-8" aria-busy="true">
+              <div className="flex justify-center">
+                <LoadingSpinner label="Loading article..." size="lg" />
+              </div>
+              <Skeleton decorative lines={5} />
             </div>
           )}
 
@@ -415,10 +559,14 @@ export default function ReaderPage() {
             />
           ) : (
             !isLoading && !error && (
-              <div className="text-center text-gray-400 py-20">
+              <div className="text-center text-gray-400 py-20" role="status" aria-live="polite">
                 <p className="text-xl mb-2">Enter a URL above to start reading</p>
                 <p className="text-sm">
-                  Keyboard: Space = play/pause, ←→ = navigate, ↑↓ = speed
+                  Paste any webpage address into the box at the top of this page, then press Load.
+                </p>
+                <p className="text-sm mt-2">
+                  Keyboard: Space = play/pause, ←→ = paragraphs,
+                  Alt+←→ = sentences, ↑↓ or S/T = speed, Esc = home
                 </p>
               </div>
             )
@@ -489,11 +637,110 @@ export default function ReaderPage() {
             )}
           </div>
 
+          {/* Sentence navigation — steps through the current paragraph one
+              sentence at a time (Alt+←/→ does the same from the keyboard).
+              Activating either button switches playback to sentence mode. */}
+          <div
+            className="flex items-center justify-center gap-2 max-w-lg mx-auto mt-2"
+            role="group"
+            aria-label="Sentence navigation"
+          >
+            <button
+              type="button"
+              onClick={prevSentence}
+              disabled={currentChunk === 0 && currentSentenceIndex === 0}
+              className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Previous sentence (Alt and Left arrow)"
+            >
+              ‹ Sentence
+            </button>
+            <button
+              type="button"
+              onClick={toggleSentenceMode}
+              aria-pressed={sentenceMode}
+              className={`min-h-touch px-3 py-2 rounded-lg text-sm font-medium border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                sentenceMode
+                  ? "bg-primary-600 border-primary-500 text-white"
+                  : "bg-surface-2 hover:bg-surface-3 text-stone-100 border-surface-border"
+              }`}
+            >
+              Sentence mode
+            </button>
+            <button
+              type="button"
+              onClick={nextSentence}
+              disabled={
+                currentChunk >= chunks.length - 1 &&
+                currentSentenceIndex >= currentSentences.length - 1
+              }
+              className="min-h-touch px-3 py-2 rounded-lg text-sm font-medium bg-surface-2 hover:bg-surface-3 text-stone-100 border border-surface-border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Next sentence (Alt and Right arrow)"
+            >
+              Sentence ›
+            </button>
+          </div>
+
+          {/* Speed presets — quick picks alongside the ↑/↓ / S/T fine
+              adjustment. aria-pressed marks the active preset. */}
+          <div
+            className="flex items-center justify-center gap-1.5 max-w-lg mx-auto mt-2"
+            role="group"
+            aria-label="Reading speed presets"
+          >
+            {READER_SPEED_PRESETS.map((preset) => {
+              const active = Math.abs(speechRate - preset) < 0.05;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => applySpeedPreset(preset)}
+                  aria-pressed={active}
+                  className={`min-h-touch px-3 py-2 rounded-lg text-sm font-medium border focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                    active
+                      ? "bg-primary-600 border-primary-500 text-white"
+                      : "bg-surface-2 hover:bg-surface-3 text-stone-100 border-surface-border"
+                  }`}
+                >
+                  {preset.toFixed(1)}x
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Keyboard cheat sheet — collapsible so it never pushes the
+              transport controls off-screen, but always one tap away. */}
+          <details className="max-w-lg mx-auto mt-3 w-full bg-gray-900 rounded-xl border border-gray-700">
+            <summary className="text-sm font-semibold text-primary-400 cursor-pointer min-h-touch flex items-center px-4">
+              Keyboard shortcuts
+            </summary>
+            <ul className="px-4 pb-3 pt-1 space-y-1 text-xs text-gray-300 list-none">
+              <li>
+                <Kbd>Space</Kbd> play or pause
+              </li>
+              <li>
+                <Kbd>←</Kbd> <Kbd>→</Kbd> previous or next paragraph
+              </li>
+              <li>
+                <Kbd>Alt</Kbd>+<Kbd>←</Kbd> <Kbd>Alt</Kbd>+<Kbd>→</Kbd>{" "}
+                previous or next sentence
+              </li>
+              <li>
+                <Kbd>↑</Kbd> <Kbd>↓</Kbd> or <Kbd>T</Kbd> <Kbd>S</Kbd> faster
+                or slower
+              </li>
+              <li>
+                <Kbd>Esc</Kbd> back to home
+              </li>
+            </ul>
+          </details>
+
           {/* Progress */}
           <div className="max-w-lg mx-auto mt-2">
             <div className="flex justify-between text-xs text-gray-400">
               <span>
-                {currentChunk + 1} / {chunks.length}
+                {sentenceMode
+                  ? `Paragraph ${currentChunk + 1}/${chunks.length} • Sentence ${Math.min(currentSentenceIndex + 1, currentSentences.length)}/${currentSentences.length}`
+                  : `${currentChunk + 1} / ${chunks.length}`}
               </span>
               <span>{speechRate.toFixed(1)}x speed</span>
             </div>
@@ -510,6 +757,21 @@ export default function ReaderPage() {
                 aria-label={`Reading progress: ${currentChunk + 1} of ${chunks.length} sections`}
               />
             </div>
+            {sentenceMode && currentSentences.length > 0 && (
+              <div className="w-full bg-gray-700 rounded-full h-1 mt-1">
+                <div
+                  className="bg-primary-300 h-1 rounded-full transition-all"
+                  style={{
+                    width: `${((Math.min(currentSentenceIndex, currentSentences.length - 1) + 1) / currentSentences.length) * 100}%`,
+                  }}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={currentSentences.length}
+                  aria-valuenow={currentSentenceIndex + 1}
+                  aria-label={`Sentence progress: sentence ${currentSentenceIndex + 1} of ${currentSentences.length} in this paragraph`}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
