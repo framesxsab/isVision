@@ -192,7 +192,7 @@ export default function VisionAssistantPage() {
     >
 
       {/* Camera feed */}
-      <div className="flex-1 relative bg-black">
+      <div className="flex-1 relative bg-black" aria-busy={state === "analyzing"}>
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
