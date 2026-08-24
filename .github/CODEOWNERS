@@ -1,0 +1,11 @@
+# CODEOWNERS — isVisible
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @framesxsab
+
+# Per-module (commented until second maintainer joins)
+# /pwa/src/modules/touch-explorer/ @framesxsab
+# /pwa/src/modules/tactile-output/ @framesxsab
+# /firmware/ @framesxsab
+# /tools/ @framesxsab
+# /docs/ @framesxsab

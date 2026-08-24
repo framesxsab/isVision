@@ -1,0 +1,50 @@
+# labels.yml — source for https://github.com/framesxsab/isVision/labels
+# Sync via: gh label clone or manual create. Keep in sync with issue forms.
+
+- name: "a11y"
+  color: "0e8a16"
+  description: "Accessibility — keyboard, screen reader, focus, contrast"
+
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers — mentor in GOOD_FIRST_ISSUES.md"
+
+- name: "help wanted"
+  color: "008672"
+  description: "Extra attention needed — see HELP_WANTED.md"
+
+- name: "research"
+  color: "d93f0b"
+  description: "Research / field study / validation"
+
+- name: "hardware"
+  color: "fbca04"
+  description: "Firmware, protocol, tactile_serve bridges"
+
+- name: "PWA"
+  color: "1d76db"
+  description: "Progressive Web App — React, Vite, liblouis"
+
+- name: "tactile"
+  color: "c5def5"
+  description: "Tactile Lab, Drill, Graphics, frames"
+
+- name: "docs"
+  color: "0075ca"
+  description: "Documentation"
+
+- name: "bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "enhancement"
+  color: "a2eeef"
+  description: "New feature or request"
+
+- name: "needs-triage"
+  color: "ededed"
+  description: "Needs triage"
+
+- name: "prototype"
+  color: "fef2c0"
+  description: "Prototype — not yet validated with users"
